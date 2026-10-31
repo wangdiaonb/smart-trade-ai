@@ -19,6 +19,7 @@ from documents_api import router as documents_router
 from research_api import router as research_router
 from automation_api import router as automation_router, scheduler_loop
 from dashboard_api import router as dashboard_router
+from communications_api import router as communications_router
 from database import connection
 from tenancy import TenantContext, require_tenant
 from secret_store import SecretStore
@@ -65,6 +66,14 @@ def create_app(
     app.state.model_transport = model_transport
     app.state.secret_store = SecretStore(resolved_db_path.parent / 'model-encryption.key')
     app.state.skill_catalog = SkillCatalog(skill_dir if skill_dir is not None else APP_DIR.parent / 'skills')
+
+    @app.middleware('http')
+    async def prevent_stale_demo_assets(request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path == '/' or request.url.path.startswith('/static/'):
+            response.headers['Cache-Control'] = 'no-store'
+        return response
+
     app.include_router(business_router)
     app.include_router(chat_router)
     app.include_router(orders_router)
@@ -72,6 +81,7 @@ def create_app(
     app.include_router(research_router)
     app.include_router(automation_router)
     app.include_router(dashboard_router)
+    app.include_router(communications_router)
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     app.add_middleware(
@@ -84,7 +94,7 @@ def create_app(
 
     @app.get("/")
     def index() -> FileResponse:
-        return FileResponse(STATIC_DIR / "index.html")
+        return FileResponse(STATIC_DIR / "index.html", headers={'Cache-Control': 'no-store'})
 
     @app.post("/api/register", status_code=status.HTTP_201_CREATED)
     def register(credentials: Credentials, request: Request) -> dict[str, object]:

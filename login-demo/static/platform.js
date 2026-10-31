@@ -117,6 +117,7 @@ el('research-form').addEventListener('submit',event=>{event.preventDefault();con
 el('new-automation').addEventListener('click',()=>openAutomation());
 el('automation-form').addEventListener('submit',event=>{event.preventDefault();const raw=Object.fromEntries(new FormData(el('automation-form')));const body={...raw,weekday:Number(raw.weekday),enabled:raw.enabled==='on'};run(async valid=>{await api(editingAutomation?`/api/automations/${editingAutomation}`:'/api/automations',{method:editingAutomation?'PUT':'POST',body,signal:lifetime.signal});if(!valid())return;el('automation-dialog').close();await loadAutomations();},'automation-message');});
 document.querySelectorAll('[data-jump]').forEach(button=>button.addEventListener('click',()=>window.dispatchEvent(new CustomEvent('workspace-navigate',{detail:button.dataset.jump}))));
+el('quick-chat').addEventListener('click',()=>window.dispatchEvent(new CustomEvent('workspace-navigate',{detail:'chat'})));
 document.querySelectorAll('[data-close]').forEach(button=>button.addEventListener('click',()=>el(button.dataset.close).close()));
 
 export function startPlatform(){stopPlatform();active=true;lifetime=new AbortController();run(()=>Promise.all([loadDashboard(),loadSkillsAndCustomers()]));}

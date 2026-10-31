@@ -67,6 +67,7 @@
               <button type="button" data-view="orders">订单与报价</button>
               <button type="button" data-view="documents">文档与模板</button>
               <button type="button" data-view="research">客户情报</button>
+              <button type="button" data-view="communications">邮件沟通</button>
               <button type="button" data-view="automations">自动化</button>
               <button type="button" data-view="model">模型与记忆</button>
             </nav>
@@ -110,6 +111,34 @@
               <form id="research-settings-form" class="research-settings"><label>Tavily API Key<input name="api_key" type="password" autocomplete="off" maxlength="1000" placeholder="填写新密钥；留空保留已保存密钥"></label><button class="quiet-button" type="submit">保存搜索配置</button><button id="clear-research-key" type="button" class="text-button">清除密钥</button><span id="research-key-state" class="muted">尚未配置</span></form>
               <form id="research-form" class="customer-toolbar"><label class="sr-only" for="research-query">目标公司或问题</label><input id="research-query" name="query" minlength="2" maxlength="2000" required placeholder="输入目标公司、官网或要核验的问题"><label class="sr-only" for="research-customer">关联客户</label><select id="research-customer" name="customer_id"><option value="">不关联客户</option></select><button class="primary-button compact" type="submit">搜索公开信息</button></form>
               <p id="research-message" class="form-message" role="status" aria-live="polite"></p><div id="research-reports" class="record-list"></div>
+            </section>
+            <section id="communications-view" aria-labelledby="communications-title" hidden>
+              <div class="section-heading"><div><p class="eyebrow">客户沟通</p><h1 id="communications-title">邮件沟通</h1><p class="section-description">使用当前公司空间自己的 SMTP 账户发送单封邮件，并保留发送状态。</p></div></div>
+              <form id="smtp-settings-form" class="smtp-settings">
+                <div class="form-grid">
+                  <label>SMTP 主机<input name="host" maxlength="253" required placeholder="smtp.example.com"></label>
+                  <label>端口<input name="port" type="number" min="1" max="65535" value="587" required></label>
+                  <label>连接安全<select name="security"><option value="starttls">STARTTLS</option><option value="ssl">SSL</option><option value="none">无加密（仅本地测试）</option></select></label>
+                  <label>登录用户<input name="username" maxlength="500" autocomplete="username"></label>
+                  <label>发件邮箱<input name="from_email" type="email" maxlength="254" required></label>
+                  <label>SMTP 密码<input name="password" type="password" autocomplete="new-password" maxlength="1000" placeholder="留空保留已保存密码"></label>
+                </div>
+                <div class="settings-actions"><button type="submit" class="quiet-button">保存 SMTP 配置</button><button id="clear-smtp-password" type="button" class="text-button">清除密码</button><span id="smtp-password-state" class="muted">尚未配置</span></div>
+                <p id="smtp-message" class="form-message" role="status" aria-live="polite"></p>
+              </form>
+              <div class="workspace-rule"></div>
+              <form id="mail-form" class="business-form">
+                <div class="form-grid">
+                  <label>关联客户<select id="mail-customer" name="customer_id"><option value="">不关联客户</option></select></label>
+                  <label>使用模板<select id="mail-template"><option value="">不使用模板</option></select></label>
+                  <label class="full-width">收件人<input id="mail-to" name="to" type="email" maxlength="254" required></label>
+                  <label class="full-width">主题<input id="mail-subject" name="subject" maxlength="500" required></label>
+                  <label class="full-width">正文<textarea id="mail-body" name="body" rows="10" maxlength="100000" required></textarea></label>
+                </div>
+                <div class="settings-actions"><button type="submit" class="primary-button compact">检查并发送</button><span class="muted">每小时最多 10 封，单封发送需要再次确认。</span></div>
+                <p id="mail-message" class="form-message" role="status" aria-live="polite"></p>
+              </form>
+              <div class="workspace-rule"></div><h2 class="subsection-title">发送记录</h2><div id="mail-history" class="record-list"></div>
             </section>
             <section id="automations-view" aria-labelledby="automations-title" hidden>
               <div class="section-heading"><div><p class="eyebrow">本地调度</p><h1 id="automations-title">自动化</h1><p class="section-description">按公司资料和客户数据定时生成文本结果，运行记录保存在当前空间。</p></div><button id="new-automation" class="primary-button compact" type="button">＋ 新建任务</button></div>
@@ -197,5 +226,6 @@
     <dialog id="template-dialog" aria-labelledby="template-title"><form id="template-form" class="business-form"><div class="dialog-heading"><h2 id="template-title">业务文案模板</h2><button class="icon-button" data-close="template-dialog" type="button" aria-label="关闭模板">×</button></div><label>模板名称<input name="name" required maxlength="200"></label><label>模板内容<textarea name="content" rows="10" maxlength="50000" required></textarea></label><p id="template-message" class="form-message" role="status"></p><div class="dialog-actions"><button type="submit" class="primary-button compact">保存模板</button></div></form></dialog>
     <dialog id="research-report-dialog" aria-labelledby="research-report-title"><div class="dialog-heading"><h2 id="research-report-title">客户情报报告</h2><button class="icon-button" data-close="research-report-dialog" type="button" aria-label="关闭报告">×</button></div><p id="research-report-meta" class="muted"></p><div id="research-report-answer" class="report-answer"></div><h3>来源</h3><div id="research-sources" class="source-list"></div></dialog>
     <dialog id="automation-dialog" aria-labelledby="automation-title"><form id="automation-form" class="business-form"><div class="dialog-heading"><h2 id="automation-title">新建自动化</h2><button class="icon-button" type="button" data-close="automation-dialog" aria-label="关闭自动化">×</button></div><div class="form-grid"><label class="full-width">任务名称<input name="name" required maxlength="200"></label><label class="full-width">执行指令<textarea name="prompt" rows="5" maxlength="20000" required placeholder="例如：根据公司资料和客户列表，列出今天应优先跟进的客户并说明原因。"></textarea></label><label>业务技能<select name="skill_id" id="automation-skill" required></select></label><label>频率<select name="frequency"><option value="daily">每天</option><option value="weekdays">工作日</option><option value="weekly">每周</option></select></label><label>执行时间<input name="time_of_day" type="time" value="09:00" required></label><label>每周执行日<select name="weekday"><option value="0">周一</option><option value="1">周二</option><option value="2">周三</option><option value="3">周四</option><option value="4">周五</option><option value="5">周六</option><option value="6">周日</option></select></label><label class="checkbox-label"><input name="enabled" type="checkbox" checked>启用此任务</label></div><p id="automation-message" class="form-message" role="status"></p><div class="dialog-actions"><button type="button" class="quiet-button" data-close="automation-dialog">取消</button><button type="submit" class="primary-button compact">保存任务</button></div></form></dialog>
+    <dialog id="send-mail-dialog" aria-labelledby="send-mail-title"><div class="dialog-heading"><h2 id="send-mail-title">确认发送邮件</h2><button class="icon-button" type="button" data-close="send-mail-dialog" aria-label="关闭发送确认">×</button></div><p id="send-mail-summary" class="muted"></p><pre id="send-mail-preview" class="plain-preview"></pre><p id="send-mail-error" class="form-message" role="status"></p><div class="dialog-actions"><button type="button" class="quiet-button" data-close="send-mail-dialog">返回修改</button><button id="confirm-send-mail" type="button" class="primary-button compact">确认发送</button></div></dialog>
   </body>
 </html>

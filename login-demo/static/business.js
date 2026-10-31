@@ -2,6 +2,7 @@ import {api} from './api.js';
 import {startChat, stopChat} from './chat.js';
 import {startOperations, stopOperations} from './operations.js';
 import {startPlatform, stopPlatform} from './platform.js';
+import {startCommunications, stopCommunications} from './communications.js';
 
 const el = id => document.getElementById(id);
 const companyForm = el('company-form');
@@ -131,6 +132,7 @@ function action(button, task, errorTarget = null) {
 }
 
 export function stopBusiness() {
+  stopCommunications();
   stopPlatform();
   stopOperations();
   stopChat();
@@ -152,7 +154,7 @@ export function stopBusiness() {
 }
 
 export async function startBusiness() {
-  stopBusiness(); active = true; controller = new AbortController(); startOperations(); startPlatform();
+  stopBusiness(); active = true; controller = new AbortController(); startOperations(); startPlatform(); startCommunications();
   const owner = epoch;
   selectView('dashboard');
   const company = await api('/api/company', {signal: controller.signal});
@@ -164,7 +166,7 @@ export async function startBusiness() {
 }
 
 function selectView(view) {
-  ['dashboard','customers','company','chat','model','orders','documents','research','automations'].forEach(name => { el(`${name}-view`).hidden = view !== name; });
+  ['dashboard','customers','company','chat','model','orders','documents','research','communications','automations'].forEach(name => { el(`${name}-view`).hidden = view !== name; });
   window.dispatchEvent(new CustomEvent('workspace-view',{detail:view}));
   document.querySelectorAll('[data-view]').forEach(button => {
     if (button.dataset.view === view) button.setAttribute('aria-current', 'page');
