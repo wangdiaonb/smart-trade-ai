@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from auth import authenticate_user, init_db, register_user
@@ -26,6 +27,7 @@ def create_app(db_path: Path | None = None, secret_key: str | None = None) -> Fa
 
     app = FastAPI(title="Login Demo")
     app.state.db_path = resolved_db_path
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     app.add_middleware(
         SessionMiddleware,
         secret_key=secret_key or os.getenv("LOGIN_DEMO_SECRET") or secrets.token_urlsafe(32),

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f6f4">
+    <title>工作台登录</title>
+    <link rel="stylesheet" href="/static/app.css">
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <main class="page-shell">
+      <section id="auth-panel" class="auth-panel" aria-labelledby="auth-title">
+        <header class="brand-row">
+          <span class="brand-mark" aria-hidden="true">W</span>
+          <span class="brand-name">Workroom</span>
+        </header>
+
+        <div class="auth-content">
+          <p class="eyebrow">个人空间</p>
+          <h1 id="auth-title">欢迎回来</h1>
+          <p id="auth-subtitle" class="subtitle">登录以进入你的工作台</p>
+
+          <div class="mode-switch" role="tablist" aria-label="账户操作">
+            <button id="show-login" class="mode-button is-active" type="button" role="tab" aria-selected="true">登录</button>
+            <button id="show-register" class="mode-button" type="button" role="tab" aria-selected="false">注册</button>
+          </div>
+
+          <form id="login-form" class="auth-form">
+            <label for="login-email">邮箱</label>
+            <input id="login-email" name="email" type="email" autocomplete="email" maxlength="254" required>
+            <label for="login-password">密码</label>
+            <input id="login-password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required>
+            <button class="primary-button" type="submit">登录</button>
+          </form>
+
+          <form id="register-form" class="auth-form" hidden>
+            <label for="register-email">邮箱</label>
+            <input id="register-email" name="email" type="email" autocomplete="email" maxlength="254" required>
+            <label for="register-password">密码</label>
+            <input id="register-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+            <button class="primary-button" type="submit">创建账户</button>
+          </form>
+
+          <p id="status-message" class="status-message" role="status" aria-live="polite"></p>
+        </div>
+        <footer class="auth-footer">本地演示</footer>
+      </section>
+
+      <section id="workspace" class="workspace" aria-labelledby="workspace-title" hidden>
+        <header class="workspace-header">
+          <a class="workspace-brand" href="/" aria-label="Workroom 首页">
+            <span class="brand-mark" aria-hidden="true">W</span>
+            <span class="brand-name">Workroom</span>
+          </a>
+          <button id="logout-button" class="quiet-button" type="button">退出登录</button>
+        </header>
+        <div class="workspace-content">
+          <p class="eyebrow">个人空间</p>
+          <h1 id="workspace-title">工作台</h1>
+          <div class="identity-row">
+            <span class="identity-dot" aria-hidden="true"></span>
+            <span id="workspace-email" class="identity-email"></span>
+          </div>
+          <div class="workspace-rule"></div>
+          <p class="workspace-empty">账户已就绪</p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

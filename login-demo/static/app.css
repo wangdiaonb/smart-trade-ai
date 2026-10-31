@@ -1,0 +1,240 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+  color: #182a26;
+  background: #f4f6f4;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --text-muted: #65716e;
+  --line: #dce3df;
+  --accent: #147d68;
+  --accent-hover: #0f6957;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: #f4f6f4;
+}
+
+button, input { font: inherit; }
+
+button { cursor: pointer; }
+
+[hidden] { display: none !important; }
+
+.page-shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 32px 20px;
+}
+
+.auth-panel {
+  width: min(100%, 420px);
+  min-height: 530px;
+  padding: 28px 32px 22px;
+  border: 1px solid #e0e6e2;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 48px rgb(27 48 40 / 7%);
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-row, .workspace-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.brand-mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 7px;
+  background: #173d35;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.brand-name { font-size: 15px; font-weight: 650; }
+
+.auth-content { margin-top: 46px; }
+
+.eyebrow {
+  margin: 0 0 9px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+h1 {
+  margin: 0;
+  font-size: 27px;
+  line-height: 1.25;
+  font-weight: 680;
+}
+
+.subtitle {
+  margin: 9px 0 24px;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 42px;
+  padding: 3px;
+  border-radius: 6px;
+  background: #eef2ef;
+}
+
+.mode-button {
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #5e6b66;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mode-button.is-active {
+  background: #fff;
+  color: #183c34;
+  box-shadow: 0 1px 3px rgb(20 39 32 / 13%);
+}
+
+.auth-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  margin-top: 22px;
+}
+
+.auth-form label {
+  margin: 0 0 7px;
+  color: #34423d;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.auth-form input {
+  width: 100%;
+  height: 44px;
+  margin: 0 0 17px;
+  padding: 0 12px;
+  border: 1px solid #ccd6d1;
+  border-radius: 5px;
+  outline: none;
+  background: #fff;
+  color: #1d2b27;
+}
+
+.auth-form input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(20 125 104 / 13%);
+}
+
+.primary-button {
+  height: 45px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.primary-button:hover { background: var(--accent-hover); }
+.primary-button:disabled { cursor: wait; opacity: .7; }
+
+.status-message {
+  min-height: 20px;
+  margin: 12px 0 0;
+  color: #a13b32;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.status-message.is-success { color: #147d68; }
+
+.auth-footer {
+  margin-top: auto;
+  padding-top: 24px;
+  color: #87928d;
+  font-size: 12px;
+}
+
+.workspace {
+  width: min(100%, 1040px);
+  min-height: min(700px, calc(100vh - 64px));
+  border: 1px solid #e0e6e2;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.workspace-header {
+  display: flex;
+  min-height: 68px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--line);
+}
+
+.quiet-button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #d3ddd8;
+  border-radius: 5px;
+  background: #fff;
+  color: #34423d;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.quiet-button:hover { background: #f4f6f4; }
+
+.workspace-content { padding: 44px 48px; }
+.workspace-content h1 { margin-bottom: 25px; }
+
+.identity-row {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  gap: 10px;
+  color: #46534e;
+  font-size: 14px;
+}
+
+.identity-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #32a784;
+  box-shadow: 0 0 0 4px #e7f4ee;
+}
+
+.identity-email { overflow-wrap: anywhere; }
+.workspace-rule { height: 1px; margin: 22px 0; background: var(--line); }
+.workspace-empty { margin: 0; color: var(--text-muted); font-size: 14px; }
+
+@media (max-width: 520px) {
+  .page-shell { padding: 16px; }
+  .auth-panel { min-height: 510px; padding: 22px 20px 18px; }
+  .auth-content { margin-top: 38px; }
+  .workspace { min-height: calc(100vh - 32px); }
+  .workspace-header { min-height: 60px; padding: 0 16px; }
+  .workspace-content { padding: 34px 20px; }
+}

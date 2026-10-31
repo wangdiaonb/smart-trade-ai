@@ -53,3 +53,30 @@ def test_invalid_registration_is_unprocessable(tmp_path):
     )
 
     assert response.status_code == 422
+
+
+def test_root_serves_login_ui(tmp_path):
+    client = TestClient(create_app(tmp_path / "accounts.sqlite3", "test-secret"))
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert 'id="login-form"' in response.text
+    assert 'id="register-form"' in response.text
+    assert 'id="workspace"' in response.text
+    assert 'id="register-form" class="auth-form" hidden' in response.text
+    assert 'id="register-email" name="email" type="email"' in response.text
+    assert 'id="register-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required' in response.text
+    assert "novalidate" not in response.text
+
+
+def test_static_assets_are_served(tmp_path):
+    client = TestClient(create_app(tmp_path / "accounts.sqlite3", "test-secret"))
+
+    css = client.get("/static/app.css")
+    javascript = client.get("/static/app.js")
+
+    assert css.status_code == 200
+    assert "--accent" in css.text
+    assert javascript.status_code == 200
+    assert "restoreSession" in javascript.text
