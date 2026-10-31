@@ -3,10 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#fafaf7">
-  <meta name="description" content="Trade AI 本地外贸业务分析工作台">
   <link rel="icon" type="image/png" href="/original-static/trade-icon.png">
-  <title>Trade AI · 外贸业务分析台</title>
+  <title>Trade AI Assistant — 智能外贸销售助手</title>
   <link rel="stylesheet" href="/original-static/trade_chat.css">
   <link rel="stylesheet" href="/static/workspace.css">
   <script src="/original-static/vendor/marked.umd.js"></script>
@@ -14,116 +12,63 @@
   <script type="module" src="/static/workspace.js"></script>
 </head>
 <body>
-  <a class="skip-link" href="#app">跳到主要内容</a>
-  <div class="app-frame">
-    <header class="app-header">
-      <div class="brand-lockup">
-        <span class="brand-mark" aria-hidden="true"><i></i></span>
-        <span class="brand-name">Trade AI</span>
-        <span class="brand-section">B2B BUSINESS INTELLIGENCE</span>
-      </div>
-
-      <div class="header-segment">
-        <span class="header-filter-label">SEGMENT</span>
-        <select id="company-select" aria-label="当前公司"></select>
-        <button id="company-add" class="header-icon-button" type="button" title="添加公司" aria-label="添加公司">＋</button>
-        <button id="company-settings" class="header-icon-button" type="button" title="公司设置" aria-label="公司设置">⌘</button>
-      </div>
-
-      <div class="header-account">
-        <span class="account-email" id="account-email">已登录</span>
-        <button id="mobile-open" class="mobile-open" type="button" aria-label="打开工作流导航" aria-expanded="false">菜单</button>
-      </div>
-    </header>
-
-    <nav class="workspace-nav" id="workspace-nav" aria-label="贸易工作流">
-      <div class="mobile-nav-head">
-        <span>WORKFLOW INDEX</span>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-row">
+        <div class="logo">📦 Trade<span>AI</span></div>
         <button id="mobile-close" class="mobile-close" type="button" aria-label="关闭导航">×</button>
       </div>
-      <div class="nav-cluster">
-        <span class="nav-cluster-label">TODAY</span>
-        <button class="nav-item active" data-context="daily" data-title="今日简报" type="button"><span class="nav-icon">01</span><span class="nav-label">今日简报</span></button>
-      </div>
-      <div class="nav-cluster">
-        <span class="nav-cluster-label">ACQUIRE</span>
-        <button class="nav-item" data-context="lead" data-title="客户开发" type="button"><span class="nav-icon">02</span><span class="nav-label">客户开发</span></button>
-        <button class="nav-item" data-context="platform" data-title="网站诊断" type="button"><span class="nav-icon">03</span><span class="nav-label">网站诊断</span></button>
-        <button class="nav-item" data-context="social" data-title="社媒营销" type="button"><span class="nav-icon">04</span><span class="nav-label">社媒营销</span></button>
-        <button class="nav-item" data-context="linkedin" data-title="LinkedIn 营销" type="button"><span class="nav-icon">05</span><span class="nav-label">LinkedIn</span></button>
-        <button class="nav-item" data-context="customs" data-title="海关数据" type="button"><span class="nav-icon">06</span><span class="nav-label">海关数据</span></button>
-      </div>
-      <div class="nav-cluster">
-        <span class="nav-cluster-label">CONVERT</span>
-        <button class="nav-item" data-view="customers" type="button"><span class="nav-icon">07</span><span class="nav-label">客户管理</span></button>
-        <button class="nav-item" data-view="documents" type="button"><span class="nav-icon">08</span><span class="nav-label">文档库</span></button>
-        <button class="nav-item" data-context="docgen" data-title="文档生成" type="button"><span class="nav-icon">09</span><span class="nav-label">文档生成</span></button>
-      </div>
-      <div class="nav-cluster">
-        <span class="nav-cluster-label">OPERATE</span>
-        <button class="nav-item" data-view="osint" type="button"><span class="nav-icon">10</span><span class="nav-label">客户背调</span></button>
-        <button class="nav-item" data-view="tasks" type="button"><span class="nav-icon">11</span><span class="nav-label">定时任务</span></button>
-        <button class="nav-item" data-view="history" type="button"><span class="nav-icon">12</span><span class="nav-label">对话记录</span></button>
-      </div>
-      <div class="nav-bottom-tools">
-        <span class="nav-cluster-label">TOOLS</span>
-        <div class="nav-bottom-grid">
-          <button id="model-settings-button" class="nav-tool-button" type="button" title="模型设置" aria-label="模型设置"><span>⚙</span><small>模型设置</small></button>
-          <button id="skills-help-button" class="nav-tool-button" type="button" title="技能帮助" aria-label="技能帮助"><span>◎</span><small>技能帮助</small></button>
-          <button id="onboarding-button" class="nav-tool-button" type="button" title="新手引导" aria-label="新手引导"><span>?</span><small>新手引导</small></button>
-          <button id="logout-button" class="nav-tool-button" type="button" title="退出登录" aria-label="退出登录"><span>↗</span><small>退出登录</small></button>
+      <div class="company-select">
+        <div class="csel-row">
+          <select id="company-select" aria-label="当前公司"></select>
+          <button id="company-add" type="button" title="添加公司" aria-label="添加公司">+</button>
+          <button id="company-settings" type="button" title="公司设置" aria-label="公司设置">⚙</button>
         </div>
+      </div>
+    </div>
+    <nav class="sidebar-nav" aria-label="贸易工作流">
+      <div class="nav-section">
+        <div class="nav-section-title">📊 工作台</div>
+        <button class="nav-item active" data-context="daily" data-title="今日简报" type="button"><span class="nav-icon">📋</span><span class="nav-label">今日简报</span></button>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">🔍 获客引流</div>
+        <button class="nav-item" data-context="lead" data-title="客户开发" type="button"><span class="nav-icon">🎯</span><span class="nav-label">客户开发</span></button>
+        <button class="nav-item" data-context="platform" data-title="网站诊断" type="button"><span class="nav-icon">🏪</span><span class="nav-label">网站诊断</span></button>
+        <button class="nav-item" data-context="social" data-title="社媒营销" type="button"><span class="nav-icon">📱</span><span class="nav-label">社媒营销</span></button>
+        <button class="nav-item" data-context="linkedin" data-title="LinkedIn 营销" type="button"><span class="nav-icon">💼</span><span class="nav-label">LinkedIn</span></button>
+        <button class="nav-item" data-context="customs" data-title="海关数据" type="button"><span class="nav-icon">🛃</span><span class="nav-label">海关数据</span></button>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">👤 销售转化</div>
+        <button class="nav-item" data-view="customers" type="button"><span class="nav-icon">👥</span><span class="nav-label">客户管理</span></button>
+        <button class="nav-item" data-view="documents" type="button"><span class="nav-icon">📁</span><span class="nav-label">文档库</span></button>
+        <button class="nav-item" data-context="docgen" data-title="文档生成" type="button"><span class="nav-icon">📄</span><span class="nav-label">文档生成</span></button>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">🛠️ 工具</div>
+        <button class="nav-item" data-view="osint" type="button"><span class="nav-icon">🕵️</span><span class="nav-label">客户背调</span></button>
+        <button class="nav-item" data-view="tasks" type="button"><span class="nav-icon">⏰</span><span class="nav-label">定时任务</span></button>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">💬 历史</div>
+        <button class="nav-item" data-view="history" type="button"><span class="nav-icon">🕐</span><span class="nav-label">对话记录</span></button>
       </div>
     </nav>
-    <button id="mobile-scrim" class="mobile-scrim" type="button" aria-label="关闭工作流导航" hidden></button>
-
-    <section class="kpi-grid" aria-label="业务指标">
-      <article class="kpi-card">
-        <span class="kpi-label" id="kpi-label-1">ACTIVE CUSTOMERS</span>
-        <div class="kpi-value-row"><strong class="kpi-number" id="kpi-value-1">—</strong><span class="kpi-delta positive" id="kpi-delta-1">SYNCED</span></div>
-      </article>
-      <article class="kpi-card">
-        <span class="kpi-label" id="kpi-label-2">QUALIFIED ACCOUNTS</span>
-        <div class="kpi-value-row"><strong class="kpi-number" id="kpi-value-2">—</strong><span class="kpi-delta" id="kpi-delta-2">LOCAL</span></div>
-      </article>
-      <article class="kpi-card">
-        <span class="kpi-label" id="kpi-label-3">AI WORKFLOWS</span>
-        <div class="kpi-value-row"><strong class="kpi-number" id="kpi-value-3">—</strong><span class="kpi-delta positive" id="kpi-delta-3">READY</span></div>
-      </article>
-      <article class="kpi-card">
-        <span class="kpi-label" id="kpi-label-4">MODEL STATUS</span>
-        <div class="kpi-value-row"><strong class="kpi-number" id="kpi-value-4">—</strong><span class="kpi-delta" id="kpi-delta-4">LOCAL</span></div>
-      </article>
-    </section>
-
-    <section class="main-column">
-      <header class="workspace-globalbar">
-        <div class="global-title-group">
-          <div>
-            <div class="global-kicker">WORKSPACE / <span id="global-breadcrumb">TODAY</span></div>
-            <h1 id="global-title">今日简报</h1>
-          </div>
-        </div>
-        <div class="global-actions">
-          <span class="range-filter">RANGE <strong>NEAR 30 DAYS</strong></span>
-          <span class="global-state"><i></i> LIVE</span>
-          <time id="global-clock" class="global-clock">--:--:--</time>
-        </div>
-      </header>
-      <main class="main" id="app" aria-live="polite">
-        <div class="workspace-loading">
-          <div class="loading-skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
-          <span>正在载入业务数据…</span>
-        </div>
-      </main>
-    </section>
-
-    <footer class="app-footer">
-      <span>TRADE AI · LOCAL-FIRST B2B WORKSPACE</span>
-      <span>NO TRIAL · NO ACTIVATION</span>
-    </footer>
-  </div>
-
+    <div class="workspace-account">
+      <span class="account-dot"></span><span id="account-email">已登录</span>
+    </div>
+    <div class="sidebar-footer">
+      <button id="model-settings-button" type="button" data-tip="模型设置">⚙️</button>
+      <button id="skills-help-button" type="button" data-tip="技能帮助">📖</button>
+      <button id="onboarding-button" type="button" data-tip="新手引导">🎓</button>
+      <button id="logout-button" type="button" data-tip="退出登录">↪</button>
+    </div>
+  </aside>
+  <button id="mobile-open" class="mobile-open" type="button" aria-label="打开导航">☰</button>
+  <main class="main" id="app" aria-live="polite">
+    <div class="workspace-loading"><div class="spinner"></div><span>正在载入工作台…</span></div>
+  </main>
   <div id="toast-container" class="toast-container" aria-live="assertive"></div>
   <dialog id="app-dialog" class="app-dialog">
     <div class="app-dialog-head"><h3 id="dialog-title"></h3><button id="dialog-close" class="dialog-close" type="button" aria-label="关闭">×</button></div>

@@ -5,11 +5,7 @@ const app = document.getElementById('app');
 const dialog = document.getElementById('app-dialog');
 const dialogTitle = document.getElementById('dialog-title');
 const dialogBody = document.getElementById('dialog-body');
-const workspaceNav = document.getElementById('workspace-nav');
-const mobileScrim = document.getElementById('mobile-scrim');
-const globalTitle = document.getElementById('global-title');
-const globalBreadcrumb = document.getElementById('global-breadcrumb');
-const globalClock = document.getElementById('global-clock');
+const sidebar = document.getElementById('sidebar');
 
 const CONTEXTS = {
   daily: {title:'今日简报', skill:'b2b-daily-automation', intro:'整理今天最值得处理的客户、订单和跟进事项。', prompts:['生成今天的早安简报','总结本周客户跟进进度','今天应该优先联系哪些客户？']},
@@ -22,12 +18,10 @@ const CONTEXTS = {
   docs: {title:'文档库问答', skill:'b2b-document', intro:'选择当前文档库中的资料后提问，或直接粘贴需要分析的内容。', prompts:['概括所选文档的重点','从产品资料中提取报价参数','分析合同中的付款和交期条款']},
 };
 const VIEW_TITLES = {customers:'客户管理',documents:'文档库',osint:'客户背调',tasks:'定时任务',history:'对话记录'};
-const MODULE_CODES = {daily:'TODAY',lead:'LEAD GEN',platform:'SITE AUDIT',social:'SOCIAL',linkedin:'LINKEDIN',customs:'CUSTOMS',docgen:'DOC GEN',customers:'CUSTOMERS',documents:'DOCUMENTS',osint:'RESEARCH',tasks:'AUTOMATIONS',history:'HISTORY'};
 const state = {
   company:null,email:'',customers:[],libraries:[],skills:[],settings:null,
   view:'chat',context:'daily',conversationId:null,messages:[],chatController:null,
   chatCustomerId:null,chatDocumentId:null,libraryId:null,webSearch:true,hermesTools:true,
-  tasks:[],runs:[],orders:[],reports:[],conversations:[],
 };
 
 function esc(value) {
@@ -55,47 +49,19 @@ function setActive(key) {
     item.classList.toggle('active',active);
   });
 }
-function setMobileNav(open) {
-  workspaceNav.classList.toggle('open',open);
-  mobileScrim.hidden=!open;
-  document.getElementById('mobile-open').setAttribute('aria-expanded',String(open));
-}
-function closeMobile(){setMobileNav(false);}
-function updateWorkspaceChrome(title,code='WORKSPACE') {
-  globalTitle.textContent=title;
-  globalBreadcrumb.textContent=code;
-  document.title=`${title} · Trade AI`;
-}
-function setMetrics(metrics=[]) {
-  const fallback=[
-    {value:String(state.customers.length),label:'ACTIVE CUSTOMERS',delta:'SYNCED',tone:'positive'},
-    {value:String(state.customers.filter(c=>c.tier==='A').length),label:'QUALIFIED ACCOUNTS',delta:'TIER A'},
-    {value:String(state.skills.length),label:'AI WORKFLOWS',delta:'READY',tone:'positive'},
-    {value:state.settings?.has_key?'LIVE':'SETUP',label:'MODEL STATUS',delta:state.settings?.model||'LOCAL',tone:state.settings?.has_key?'positive':'warning'},
-  ];
-  const cards=[...metrics,...fallback].slice(0,4);
-  cards.forEach((item,index)=>{
-    document.getElementById(`kpi-label-${index+1}`).textContent=item.label;
-    document.getElementById(`kpi-value-${index+1}`).textContent=item.value;
-    const delta=document.getElementById(`kpi-delta-${index+1}`);
-    delta.textContent=item.delta||(index===0?'LIVE':'SYNCED');
-    delta.className=`kpi-delta ${item.tone||''}`.trim();
-  });
-  const configured=Boolean(state.settings?.has_key);
-}
-function setRail(options){setMetrics(options?.metrics||[]);}
+function closeMobile(){sidebar.classList.remove('open');}
 function safeError(error) {
   if (error.name==='AbortError') return;
   toast(error.message||'操作失败','error');
 }
 
 async function loadBootstrap() {
-  const [me,company,companies,skills,settings,customers,libraries,orders,automations]=await Promise.all([
+  const [me,company,companies,skills,settings,customers,libraries]=await Promise.all([
     api('/api/me'),api('/api/company'),api('/api/companies'),api('/api/chat/skills'),api('/api/model-settings'),
-    api('/api/customers?limit=100'),api('/api/libraries'),api('/api/orders'),api('/api/automations'),
+    api('/api/customers?limit=100'),api('/api/libraries'),
   ]);
   state.email=me.email;state.company=company;state.skills=skills;state.settings=settings;
-  state.customers=customers.items||[];state.libraries=libraries||[];state.orders=orders||[];state.tasks=automations||[];
+  state.customers=customers.items||[];state.libraries=libraries||[];
   document.getElementById('account-email').textContent=me.email;
   const select=document.getElementById('company-select');
   select.innerHTML=companies.map(item=>`<option value="${item.id}" ${item.id===company.id?'selected':''}>${esc(item.name)}</option>`).join('');
@@ -108,114 +74,18 @@ async function loadBootstrap() {
 function contextButtons(ctx) {
   return CONTEXTS[ctx].prompts.map(text=>`<button type="button" class="prompt-chip" data-prompt="${esc(text)}">${esc(text)}</button>`).join('');
 }
-function dailyDashboard(title,intro,ctx) {
-  const total=state.customers.length;
-  const qualified=state.customers.filter(customer=>['A','B'].includes(customer.tier)).length;
-  const tierA=state.customers.filter(customer=>customer.tier==='A').length;
-  const orderedCustomers=new Set(state.orders.map(order=>order.customer_id)).size;
-  const wonCustomers=new Set(state.orders.filter(order=>['已下单','已出货','已完成'].includes(order.status)).map(order=>order.customer_id)).size;
-  const stages=[
-    {name:'客户池',count:total,note:'全部客户'},
-    {name:'重点线索',count:qualified,note:'A + B 级'},
-    {name:'核心客户',count:tierA,note:'A 级客户'},
-    {name:'进入订单',count:orderedCustomers,note:'已建订单'},
-    {name:'已成交',count:wonCustomers,note:'下单及以后'},
-  ];
-  const max=Math.max(1,...stages.map(stage=>stage.count));
-  const documents=state.libraries.reduce((sum,library)=>sum+(library._documents?.length||0),0);
-  const profileFields=['name','industry','products','target_region','website','contact_name','contact_email','address'];
-  const profileReady=profileFields.filter(field=>Boolean(state.company?.[field])).length/profileFields.length;
-  const tasksReady=state.tasks.length?Math.min(1,state.tasks.filter(task=>task.enabled).length/Math.max(1,state.tasks.length)+0.2):0;
-  const readiness=[
-    {name:'公司与产品资料',value:Math.round(profileReady*100),note:`${profileFields.filter(field=>Boolean(state.company?.[field])).length}/${profileFields.length} 项`},
-    {name:'客户资产沉淀',value:Math.min(100,Math.round(total/20*100)),note:`${total} 个客户`},
-    {name:'可检索文档',value:Math.min(100,Math.round(documents/12*100)),note:`${documents} 个文件`},
-    {name:'自动化覆盖',value:Math.round(tasksReady*100),note:`${state.tasks.filter(task=>task.enabled).length} 个启用任务`},
-    {name:'AI 与数据服务',value:Math.round(((state.settings?.has_key?1:0)+(state.skills.length?1:0))/2*100),note:state.settings?.has_key?'模型已配置':'待配置模型'},
-  ];
-  return `
-    <div class="home-dashboard">
-      <div class="dashboard-intro">
-        <div>
-          <span class="section-kicker">BUSINESS PULSE / TODAY</span>
-          <h2>${esc(title)}</h2>
-          <p>${esc(intro)}</p>
-        </div>
-        <div class="dashboard-status"><i></i><span>${new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric',weekday:'long'})}</span></div>
-      </div>
-      <div class="analytics-grid">
-        <section class="analytics-panel funnel-panel">
-          <div class="analytics-heading">
-            <div><h3>业务推进漏斗</h3><span>客户 → 重点线索 → 成交</span></div>
-            <span class="mono-note">CURRENT COMPANY</span>
-          </div>
-          <div class="funnel-scroll"><div class="funnel-grid">
-            ${stages.map(stage=>`<div class="funnel-stage">
-              <span>${esc(stage.name)}</span>
-              <strong>${stage.count}</strong>
-              <small>${esc(stage.note)}</small>
-              <div class="funnel-track"><i style="height:${Math.max(5,Math.round(stage.count/max*100))}%"></i></div>
-            </div>`).join('')}
-          </div></div>
-          <div class="funnel-dropoffs">
-            ${stages.map((stage,index)=>`<span>${index===0?'ENTRY':`−${Math.max(0,stages[index-1].count-stage.count)}`}</span>`).join('')}
-          </div>
-        </section>
-        <section class="analytics-panel readiness-panel">
-          <div class="analytics-heading">
-            <div><h3>业务准备度</h3><span>从资料到可执行的 AI 工作流</span></div>
-            <span class="mono-note">GO-LIVE SIGNALS</span>
-          </div>
-          <div class="readiness-list">
-            ${readiness.map(item=>`<div class="readiness-row">
-              <div class="readiness-copy"><span>${esc(item.name)}</span><small>${esc(item.note)}</small></div>
-              <div class="readiness-track"><i style="width:${item.value}%"></i></div>
-              <strong>${item.value}%</strong>
-            </div>`).join('')}
-          </div>
-          <div class="analytics-note"><span>NEXT ACTION</span><p>${state.settings?.has_key?'选择一项业务流程开始执行，结果会进入当前公司空间的对话记录。':'先配置模型 API Key，再开始 AI 业务对话。'}</p></div>
-        </section>
-      </div>
-      <section class="quickstart-panel">
-        <div class="analytics-heading">
-          <div><h3>开始一项业务工作</h3><span>选择一个常用指令，可直接编辑后发送</span></div>
-          <span class="mono-note">AI WORKBENCH</span>
-        </div>
-        <div class="prompt-chips">${contextButtons(ctx)}</div>
-      </section>
-    </div>`;
-}
 function renderChat(ctx=state.context,title=CONTEXTS[ctx]?.title||'AI 对话') {
   state.view='chat';state.context=ctx;setActive(ctx);closeMobile();
   const context=CONTEXTS[ctx]||CONTEXTS.daily;
-  updateWorkspaceChrome(title,MODULE_CODES[ctx]||'AI WORKBENCH');
-  const linkedCustomer=state.customers.find(item=>String(item.id)===String(state.chatCustomerId));
-  const linkedDocument=state.libraries.flatMap(lib=>lib._documents||[]).find(item=>String(item.id)===String(state.chatDocumentId));
-  const recentCustomers=state.customers.filter(customer=>customer.created_at&&Date.now()-new Date(customer.created_at).getTime()<=30*86400000).length;
-  setRail({
-    title:'对话操作轨',stage:state.chatController?'RUNNING':'READY',progress:state.messages.length?76:48,
-    metrics:[
-      {value:String(state.customers.length),label:'ACTIVE CUSTOMERS',delta:`+${recentCustomers} / 30D`,tone:'positive'},
-      {value:String(state.customers.filter(customer=>['A','B'].includes(customer.tier)).length),label:'QUALIFIED ACCOUNTS',delta:'A + B TIER'},
-      {value:String(state.orders.length),label:'OPEN ORDERS',delta:`${state.orders.filter(order=>!['已完成','已取消'].includes(order.status)).length} ACTIVE`},
-      {value:state.settings?.has_key?'LIVE':'SETUP',label:'MODEL STATUS',delta:state.settings?.model||'LOCAL',tone:state.settings?.has_key?'positive':'warning'},
-    ],
-    queue:[
-      {title:linkedCustomer?.name||'未关联客户',detail:linkedCustomer?.country||'从客户管理中关联',tone:linkedCustomer?'done':''},
-      {title:linkedDocument?.filename||'未参考文档',detail:linkedDocument?.extraction_note||'可在文档库上传资料',tone:linkedDocument?'done':''},
-      {title:state.webSearch?'联网搜索已开启':'仅使用本地上下文',detail:'实时候选来源会在回复中列出',tone:state.webSearch?'done':''},
-    ],
-    primary:'新建工作会话',mode:'new-chat',
-  });
   const messages=state.messages.length?state.messages.map(message=>`
     <article class="message ${message.role}">
       <div class="msg-avatar">${message.role==='user'?'你':'AI'}</div>
       <div class="msg-body" data-message-id="${message.id||''}">${message.role==='assistant'?md(message.content):esc(message.content)}</div>
-    </article>`).join(''):(ctx==='daily'?dailyDashboard(title,context.intro,ctx):`
-    <div class="chat-empty simple-empty">
+    </article>`).join(''):`
+    <div class="chat-empty">
       <div class="empty-symbol">✦</div><h2>${esc(title)}</h2><p>${esc(context.intro)}</p>
       <div class="prompt-chips">${contextButtons(ctx)}</div>
-    </div>`);
+    </div>`;
   app.innerHTML=`
     <div class="chat-view">
       <div class="chat-topbar">
@@ -238,7 +108,7 @@ function renderChat(ctx=state.context,title=CONTEXTS[ctx]?.title||'AI 对话') {
       </form>
     </div>`;
   bindChat();
-  requestAnimationFrame(()=>{const box=document.getElementById('chat-messages');box.scrollTop=state.messages.length?box.scrollHeight:0;});
+  requestAnimationFrame(()=>{const box=document.getElementById('chat-messages');box.scrollTop=box.scrollHeight;});
 }
 function bindChat() {
   document.getElementById('chat-customer').addEventListener('change',event=>{state.chatCustomerId=event.target.value?Number(event.target.value):null;});
@@ -319,23 +189,6 @@ async function loadAllDocuments() {
 async function renderCustomers() {
   state.view='customers';setActive('customers');closeMobile();
   state.customers=(await api('/api/customers?limit=100')).items||[];
-  updateWorkspaceChrome('客户管理','CUSTOMERS');
-  setRail({
-    title:'客户运营台',stage:'SYNCED',progress:state.customers.length?74:36,
-    metrics:[
-      {value:String(state.customers.length),label:'TOTAL'},
-      {value:String(state.customers.filter(c=>c.tier==='A').length),label:'TIER A'},
-      {value:String(state.customers.filter(c=>c.tier==='B').length),label:'TIER B'},
-      {value:String(state.customers.filter(c=>c.tier==='C').length),label:'TIER C'},
-    ],
-    queue:state.customers.slice(0,5).map(customer=>({
-      title:customer.name,
-      detail:`${customer.tier?`${customer.tier}级`:'未分级'} · ${customer.country||'国家待补充'} · ${customer.contact||'联系人待补充'}`,
-      tone:customer.tier==='A'?'done':'',
-      customer:customer.id,
-    })),
-    primary:'添加客户',mode:'add-customer',
-  });
   app.innerHTML=`
     <div class="panel-view">
       <div class="panel-topbar"><h2>客户管理</h2><div class="panel-topbar-actions">
@@ -410,12 +263,6 @@ function customerEditor(id=null) {
       if(id)await api(`/api/customers/${id}`,{method:'PUT',body});
       else await api('/api/customers',{method:'POST',body});
       closeDialog();toast(id?'客户已更新':'客户已添加','success');state.customers=(await api('/api/customers?limit=100')).items;drawCustomerRows();
-      setMetrics([
-        {value:String(state.customers.length),label:'TOTAL CUSTOMERS',delta:'SYNCED',tone:'positive'},
-        {value:String(state.customers.filter(customer=>customer.tier==='A').length),label:'TIER A',delta:'PRIORITY'},
-        {value:String(state.customers.filter(customer=>customer.tier==='B').length),label:'TIER B',delta:'NURTURE'},
-        {value:String(state.customers.filter(customer=>customer.tier==='C').length),label:'TIER C',delta:'REVIEW'},
-      ]);
     }catch(error){safeError(error);}
   });
 }
@@ -490,23 +337,6 @@ async function renderDocuments() {
   state.libraries=await api('/api/libraries');await loadAllDocuments();
   const active=state.libraries.find(lib=>lib.id===state.libraryId)||state.libraries[0];
   state.libraryId=active?.id||null;
-  const documentCount=state.libraries.reduce((sum,lib)=>sum+(lib._documents?.length||0),0);
-  updateWorkspaceChrome('文档库','DOCUMENTS');
-  setRail({
-    title:'资料操作轨',stage:active?'LIBRARY READY':'NO LIBRARY',progress:active?82:25,
-    metrics:[
-      {value:String(state.libraries.length),label:'LIBRARIES'},
-      {value:String(documentCount),label:'FILES'},
-      {value:active?.root_path?'LOCAL':'UPLOAD',label:'SOURCE'},
-      {value:state.skills.length?'READY':'—',label:'EXTRACTOR'},
-    ],
-    queue:active?[
-      {title:active.name,detail:active.root_path||'网页上传模式',tone:'done'},
-      {title:(active._documents||[])[0]?.filename||'当前库暂无文件',detail:'支持 PDF、Office、文本和常见图片'},
-      {title:'文件内容仅在需要时送入模型',detail:'账号与公司空间隔离',tone:'done'},
-    ]:[],
-    primary:active?'添加文档库':'创建第一个文档库',mode:'add-library',
-  });
   app.innerHTML=`<div class="panel-view"><div class="panel-topbar"><h2>文档库</h2><div class="panel-topbar-actions"><button class="btn btn-primary" id="add-library" type="button">＋ 添加文档库</button></div></div><div class="panel-body">
     <div class="form-group" style="margin-bottom:14px"><label>当前文档库</label><select id="library-select">${state.libraries.length?state.libraries.map(lib=>`<option value="${lib.id}" ${lib.id===state.libraryId?'selected':''}>${esc(lib.name)}</option>`).join(''):'<option value="">暂无文档库</option>'}</select></div>
     ${active?.root_path?`<div class="document-upload"><div style="flex:1"><small class="settings-note">本地文件夹：${esc(active.root_path)}</small></div><button class="btn-xs" id="scan-library" type="button">扫描文件夹</button></div>`:''}
@@ -546,24 +376,6 @@ function libraryEditor() {
 async function renderTasks() {
   state.view='tasks';setActive('tasks');closeMobile();
   const [tasks,runs]=await Promise.all([api('/api/automations'),api('/api/automation-runs')]);
-  state.tasks=tasks;state.runs=runs;
-  updateWorkspaceChrome('定时任务','AUTOMATIONS');
-  const enabled=tasks.filter(task=>task.enabled).length;
-  const failed=runs.filter(run=>run.status!=='success').length;
-  setRail({
-    title:'自动化操作轨',stage:enabled?'SCHEDULED':'PAUSED',progress:enabled?78:30,
-    metrics:[
-      {value:String(tasks.length),label:'TASKS'},
-      {value:String(enabled),label:'ENABLED'},
-      {value:String(runs.length),label:'RUNS'},
-      {value:String(failed),label:'FAILED'},
-    ],
-    queue:[
-      ...tasks.slice(0,3).map(task=>({title:task.name,detail:`${task.frequency} · ${task.time_of_day} · ${task.enabled?'运行中':'已暂停'}`,tone:task.enabled?'done':'',command:'tasks'})),
-      ...(failed?[{title:`${failed} 次运行失败`,detail:'打开任务页查看错误和输出',tone:'alert',command:'tasks'}]:[]),
-    ],
-    primary:'新建定时任务',mode:'add-task',
-  });
   app.innerHTML=`<div class="panel-view"><div class="panel-topbar"><h2>定时任务</h2><div class="panel-topbar-actions"><button class="btn btn-primary" id="add-task" type="button">＋ 新建任务</button></div></div><div class="panel-body">
     <div class="panel-section"><div class="panel-section-title">任务模板</div><div class="prompt-chips" style="justify-content:flex-start">${[['早安简报','生成今天的早安简报，汇总客户跟进、订单进度和业务行动。'],['客户跟进','根据客户列表和订单，列出今天应优先跟进的客户。'],['LinkedIn 内容','生成本周 LinkedIn 内容计划。'],['市场简报','整理目标市场本周值得关注的公开信息。']].map(([title,prompt])=>`<button class="prompt-chip" data-template="${esc(prompt)}" data-name="${title}" type="button">${title}</button>`).join('')}</div></div>
     <div class="simple-list">${tasks.length?tasks.map(task=>`<div class="simple-item"><div><strong>${esc(task.name)}</strong><br><small>${task.frequency==='daily'?'每天':task.frequency==='weekdays'?'工作日':'每周'} ${esc(task.time_of_day)} · ${task.enabled?'已启用':'已暂停'} · 下次 ${new Date(task.next_run_at).toLocaleString('zh-CN')}</small></div><div class="simple-actions"><button class="btn-xs primary" type="button" data-run="${task.id}">立即执行</button><button class="btn-xs" type="button" data-task="${task.id}">编辑</button></div></div>`).join(''):'<div class="empty-list">暂无定时任务</div>'}</div>
@@ -593,23 +405,6 @@ async function taskEditor(id=null,preset={}) {
 async function renderOsint() {
   state.view='osint';setActive('osint');closeMobile();
   const [settings,reports]=await Promise.all([api('/api/research/settings'),api('/api/research/reports')]);
-  state.reports=reports;
-  updateWorkspaceChrome('客户背调','RESEARCH');
-  const evidenceCount=reports.reduce((sum,report)=>sum+Number(report.source_count||0),0);
-  setRail({
-    title:'背调操作轨',stage:settings.has_key?'SEARCH READY':'KEY REQUIRED',progress:settings.has_key?88:38,
-    metrics:[
-      {value:String(reports.length),label:'REPORTS'},
-      {value:String(evidenceCount),label:'SOURCES'},
-      {value:settings.has_key?'ON':'OFF',label:'TAVILY'},
-      {value:'6L',label:'VERIFY'},
-    ],
-    queue:[
-      {title:settings.has_key?'公开搜索已就绪':'尚未配置 Tavily',detail:settings.has_key?'可执行公开来源检索与深度背调':'点击操作轨进入搜索配置',tone:settings.has_key?'done':'alert',command:settings.has_key?'osint':'config-research'},
-      ...reports.slice(0,2).map(report=>({title:report.query,detail:`${report.status==='success'?'完成':'失败'} · ${report.source_count||0} 个来源`,tone:report.status==='success'?'done':'alert',command:'osint'})),
-    ],
-    primary:settings.has_key?'开始公开搜索':'配置搜索服务',mode:settings.has_key?'osint':'config-research',
-  });
   app.innerHTML=`<div class="panel-view"><div class="panel-topbar"><h2>客户背调</h2><button class="btn-xs" id="research-settings" type="button">搜索配置</button></div><div class="panel-body">
     <form id="research-form" class="document-upload"><label style="flex:2">目标邮箱、域名、官网或核验问题<input id="research-query" required maxlength="2000" placeholder="例如：buyer@acme.com 或 acme.com"></label><label>关联客户<select id="research-customer"><option value="">不关联客户</option>${state.customers.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label><button class="btn btn-primary" type="submit">搜索公开信息</button><button class="btn" id="deep-research" type="button">深度背调</button></form>
     <p class="settings-note">${settings.has_key?'已配置 Tavily 搜索。':'尚未配置 Tavily 搜索，可点击右上角配置。'}</p>
@@ -641,18 +436,6 @@ function showReport(report) {
 async function renderHistory() {
   state.view='history';setActive('history');closeMobile();
   const conversations=await api('/api/conversations');
-  state.conversations=conversations;
-  updateWorkspaceChrome('对话记录','HISTORY');
-  setRail({
-    title:'历史操作轨',stage:'SYNCED',progress:66,
-    metrics:[
-      {value:String(conversations.length),label:'THREADS'},
-      {value:conversations.length?new Date(conversations[0].updated_at).toLocaleDateString('zh-CN'):'—',label:'LATEST',wide:false},
-      {value:'LOCAL',label:'STORAGE',wide:true},
-    ],
-    queue:conversations.slice(0,4).map(item=>({title:item.title,detail:new Date(item.updated_at).toLocaleString('zh-CN'),command:'history'})),
-    primary:'开始新对话',mode:'new-chat',
-  });
   app.innerHTML=`<div class="panel-view"><div class="panel-topbar"><h2>对话记录</h2></div><div class="panel-body"><div class="simple-list">${conversations.length?conversations.map(c=>`<div class="simple-item"><div><strong>${esc(c.title)}</strong><br><small>${new Date(c.updated_at).toLocaleString('zh-CN')}</small></div><div class="simple-actions"><button class="btn-xs" type="button" data-open-chat="${c.id}">打开</button><button class="btn-xs" type="button" data-delete-chat="${c.id}">删除</button></div></div>`).join(''):'<div class="empty-list">暂无对话记录</div>'}</div></div></div>`;
   app.querySelectorAll('[data-open-chat]').forEach(button=>button.addEventListener('click',async()=>{try{const thread=await api(`/api/conversations/${button.dataset.openChat}`);state.conversationId=thread.id;state.messages=thread.messages;const skill=thread.messages.at(-1)?.skill_id||'general';state.context=Object.entries(CONTEXTS).find(([,v])=>v.skill===skill)?.[0]||'daily';renderChat(state.context,thread.title);}catch(error){safeError(error);}}));
   app.querySelectorAll('[data-delete-chat]').forEach(button=>button.addEventListener('click',async()=>{if(!confirm('确定删除这段对话？'))return;try{await api(`/api/conversations/${button.dataset.deleteChat}`,{method:'DELETE'});await renderHistory();toast('对话已删除');}catch(error){safeError(error);}}));
@@ -711,21 +494,10 @@ document.getElementById('model-settings-button').addEventListener('click',openMo
 document.getElementById('skills-help-button').addEventListener('click',openSkillsHelp);
 document.getElementById('onboarding-button').addEventListener('click',openOnboarding);
 document.getElementById('logout-button').addEventListener('click',async()=>{try{await api('/api/logout',{method:'POST',body:{}});}finally{location.href='/';}});
-document.getElementById('mobile-open').addEventListener('click',()=>setMobileNav(true));
+document.getElementById('mobile-open').addEventListener('click',()=>sidebar.classList.add('open'));
 document.getElementById('mobile-close').addEventListener('click',closeMobile);
 document.getElementById('dialog-close').addEventListener('click',closeDialog);
-mobileScrim.addEventListener('click',closeMobile);
 window.addEventListener('session-expired',()=>{location.href='/';});
-window.addEventListener('keydown',event=>{if(event.key==='Escape')closeMobile();});
-
-function updateClock(){
-  const now=new Date();
-  const date=now.toLocaleDateString('zh-CN',{month:'2-digit',day:'2-digit',weekday:'short'});
-  const time=now.toLocaleTimeString('zh-CN',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  globalClock.textContent=`${date} · ${time}`;
-}
-updateClock();
-setInterval(updateClock,1000);
 
 (async function init(){
   try{
