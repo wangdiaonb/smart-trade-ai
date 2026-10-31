@@ -3,43 +3,93 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#cfe8d6">
+  <meta name="description" content="Trade AI 独立登录版外贸业务工作台">
   <title>Trade AI · 登录</title>
+  <link rel="icon" type="image/png" href="/original-static/trade-icon.png">
   <link rel="stylesheet" href="/static/app.css">
   <script src="/static/app.js" type="module"></script>
 </head>
 <body>
+  <a class="skip-link" href="#auth-panel">跳到登录表单</a>
   <main class="page-shell">
-    <section id="auth-panel" class="auth-panel" aria-labelledby="auth-title">
+    <section class="auth-story" aria-labelledby="story-title">
       <header class="brand-row">
-        <span class="brand-mark" aria-hidden="true">📦</span>
-        <span class="brand-name">Trade AI</span>
+        <span class="brand-mark" aria-hidden="true">TA</span>
+        <span class="brand-copy"><strong>TRADE AI</strong><small>B2B OPERATIONS / LOCAL</small></span>
+      </header>
+
+      <div class="story-content">
+        <p class="eyebrow">INDEPENDENT LOGIN EDITION</p>
+        <h1 id="story-title">外贸业务，<br><span>一条操作轨。</span></h1>
+        <p class="story-lead">登录后进入独立公司空间，继续客户开发、背调、报价、文档和自动化任务。没有试用倒计时，也没有激活拦截。</p>
+      </div>
+
+      <article class="workflow-card" aria-label="工作台流程预览">
+        <div class="workflow-head">
+          <span>OPERATION QUEUE</span>
+          <strong>12 MODULES</strong>
+        </div>
+        <div class="workflow-stage">
+          <span class="stage-no">01</span>
+          <div><strong>建立公司空间</strong><small>客户、订单、文档和会话按公司隔离</small></div>
+          <span class="stage-state">READY</span>
+        </div>
+        <div class="workflow-stage">
+          <span class="stage-no">02</span>
+          <div><strong>执行外贸工作流</strong><small>从今日简报到客户背调与定时任务</small></div>
+          <span class="stage-state">READY</span>
+        </div>
+        <div class="workflow-stage">
+          <span class="stage-no">03</span>
+          <div><strong>留下可追溯记录</strong><small>对话、订单、报告与运行结果本地保存</small></div>
+          <span class="stage-state">LOCAL</span>
+        </div>
+      </article>
+
+      <footer class="story-footer">
+        <span>NO TRIAL · NO ACTIVATION</span>
+        <span>DATA STAYS LOCAL</span>
+      </footer>
+    </section>
+
+    <section id="auth-panel" class="auth-panel" aria-labelledby="auth-title">
+      <header class="auth-meta">
+        <span>SECURE LOCAL SESSION</span>
+        <span class="meta-status"><i></i> ONLINE</span>
       </header>
       <div class="auth-content">
-        <p class="eyebrow">外贸业务流程复刻版</p>
-        <h1 id="auth-title">欢迎回来</h1>
+        <p class="eyebrow">ACCOUNT ACCESS</p>
+        <h2 id="auth-title">欢迎回来</h2>
         <p id="auth-subtitle" class="subtitle">登录以进入你的公司空间</p>
         <div class="mode-switch" role="tablist" aria-label="账户操作">
           <button id="show-login" class="mode-button is-active" type="button" role="tab" aria-selected="true">登录</button>
-          <button id="show-register" class="mode-button" type="button" role="tab" aria-selected="false">注册</button>
+          <button id="show-register" class="mode-button" type="button" role="tab" aria-selected="false">开放注册</button>
         </div>
         <form id="login-form" class="auth-form">
           <label for="login-email">邮箱</label>
-          <input id="login-email" name="email" type="email" autocomplete="email" maxlength="254" required>
+          <input id="login-email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="name@company.com" required>
           <label for="login-password">密码</label>
-          <input id="login-password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required>
-          <button class="primary-button" type="submit">登录</button>
+          <input id="login-password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" placeholder="8–128 位密码" required>
+          <button class="primary-button" type="submit">进入工作台 <span>→</span></button>
         </form>
         <form id="register-form" class="auth-form" hidden>
           <label for="register-email">邮箱</label>
-          <input id="register-email" name="email" type="email" autocomplete="email" maxlength="254" required>
+          <input id="register-email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="name@company.com" required>
           <label for="register-password">密码</label>
-          <input id="register-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
-          <button class="primary-button" type="submit">创建账户</button>
+          <input id="register-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required title="至少 8 位">
+          <button class="primary-button" type="submit">创建账户 <span>→</span></button>
         </form>
         <p id="status-message" class="status-message" role="status" aria-live="polite"></p>
+        <div class="auth-note">
+          <span class="note-index">01</span>
+          <p>账号只用于进入本机工作台。模型密钥和业务数据保存在本地，可随时切换公司空间。</p>
+        </div>
       </div>
-      <footer class="auth-footer">原项目业务流程 · 无试用激活限制</footer>
+      <footer class="auth-footer">
+        <span>TRADE AI / v1.0</span>
+        <span>LOCAL-FIRST WORKSPACE</span>
+      </footer>
     </section>
   </main>
 </body>
