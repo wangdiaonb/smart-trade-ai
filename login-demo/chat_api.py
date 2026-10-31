@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -22,9 +23,10 @@ from model_gateway import ModelError, SKILLS, context_messages, stream_model
 from tenancy import TenantContext, require_tenant
 from documents_api import document
 from tavily_service import tavily_lookup
-from hermes_bridge import HermesError, run_hermes
+from hermes_bridge import HermesError, stream_hermes
 
 router = APIRouter(prefix='/api', tags=['workspace chat'])
+logger = logging.getLogger(__name__)
 
 
 class SettingsUpdate(BusinessInput):
@@ -164,6 +166,22 @@ async def collect_model_text(settings, key, messages, transport):
     return ''.join(chunks)
 
 
+async def _hermes_events(request: Request, prompt: str, working_directory):
+    streamer = getattr(request.app.state, 'hermes_streamer', None)
+    runner = getattr(request.app.state, 'hermes_runner', None)
+    if streamer is not None:
+        async for event in streamer(prompt, working_directory):
+            yield event
+        return
+    if runner is not None:
+        output = await runner(prompt, working_directory)
+        yield {'type': 'content', 'content': output}
+        yield {'type': 'result', 'text': output, 'exit_code': 0, 'error': ''}
+        return
+    async for event in stream_hermes(prompt, working_directory):
+        yield event
+
+
 @router.post('/conversations/{cid}/stream')
 async def stream_conversation(cid: int, payload: ChatInput, request: Request, store: Store):
     conversation = store.conversation(cid)
@@ -209,10 +227,22 @@ async def stream_conversation(cid: int, payload: ChatInput, request: Request, st
                 yield sse('sources', {'sources': sources})
             async with asyncio.timeout(180):
                 if importing_customers:
-                    yield sse('tool', {'name': 'import_customers', 'label': '正在写入客户库'})
+                    yield sse('tool_start', {
+                        'id': 'import_customers',
+                        'name': 'import_customers',
+                        'label': '写入客户库',
+                        'detail': '提取并校验可写入的客户记录',
+                    })
                     calls = await collect_customer_import_calls(settings, key, messages, request.app.state.model_transport)
                     _, _, output = execute_customer_import(store, calls)
                     chunks.append(output)
+                    yield sse('tool_result', {
+                        'id': 'import_customers',
+                        'name': 'import_customers',
+                        'label': '写入客户库',
+                        'detail': output,
+                        'is_error': False,
+                    })
                     yield sse('delta', {'content': output})
                     status = 'complete'
                     store.finish_turn(cid, token, message_id, output, status)
@@ -281,37 +311,145 @@ async def hermes_conversation(cid: int, payload: ChatInput, request: Request, st
     system = messages[0]['content'] + '\n你可以使用 Hermes 已启用的工具。只执行用户当前问题所需的操作；没有实际执行工具时不得声称已执行。'
     if documents:
         system += '\n当前可参考的文档内容：\n' + json.dumps(documents, ensure_ascii=False)
+    sources = []
     if payload.web_search and not importing_customers and not plain_continuation:
         research = await tavily_lookup(request.app, store.workspace_id, payload.content)
+        sources = research.get('sources') or []
         system += '\n联网搜索资料：\n' + json.dumps(research, ensure_ascii=False)
     history = '\n'.join(f"{message['role']}: {message['content']}" for message in messages[1:])
     prompt = system + '\n\n对话历史：\n' + history + '\n\n当前用户请求：\n' + payload.content
     token, message_id = store.claim_turn(cid, payload.content, payload.skill_id)
-    try:
-        if importing_customers:
-            calls = await collect_customer_import_calls(settings, key, messages, request.app.state.model_transport)
-            _, _, output = execute_customer_import(store, calls)
-            store.finish_turn(cid, token, message_id, output, 'complete')
-            return {'message_id': message_id, 'content': output}
-        if plain_continuation and not payload.force_tools:
-            async with asyncio.timeout(180):
-                output = await collect_model_text(settings, key, messages, request.app.state.model_transport)
-            store.finish_turn(cid, token, message_id, output, 'complete')
-            return {'message_id': message_id, 'content': output}
-        output = await request.app.state.hermes_runner(
-            prompt,
-            store.path.parent / 'hermes-workspaces' / str(store.workspace_id) / str(store.company_id or 0),
-        )
-        store.finish_turn(cid, token, message_id, output, 'complete')
-        return {'message_id': message_id, 'content': output}
-    except (ModelError, CustomerToolError, TimeoutError) as exc:
-        store.finish_turn(cid, token, message_id, '', 'error')
-        detail = str(exc) if not isinstance(exc, TimeoutError) else '继续回复超过时间上限，请重试。'
-        raise HTTPException(502, detail) from exc
-    except HermesError as exc:
-        store.finish_turn(cid, token, message_id, '', 'error')
-        raise HTTPException(502, str(exc)) from exc
-    except Exception as exc:
-        store.finish_turn(cid, token, message_id, '', 'error')
-        raise HTTPException(502, 'Hermes 工具暂时无法完成请求。') from exc
+
+    async def generate():
+        chunks = []
+        status = 'cancelled'
+        try:
+            yield sse('start', {'conversation_id': cid, 'message_id': message_id})
+            if payload.web_search and not importing_customers and not plain_continuation and sources:
+                yield sse('sources', {'sources': sources})
+            if importing_customers:
+                yield sse('status', {'label': '已识别客户库写入请求，正在校验记录'})
+                yield sse('tool_start', {
+                    'id': 'import_customers',
+                    'name': 'import_customers',
+                    'label': '写入客户库',
+                    'detail': '提取并校验可写入的客户记录',
+                })
+                calls = await collect_customer_import_calls(settings, key, messages, request.app.state.model_transport)
+                _, _, output = execute_customer_import(store, calls)
+                chunks.append(output)
+                yield sse('tool_result', {
+                    'id': 'import_customers',
+                    'name': 'import_customers',
+                    'label': '写入客户库',
+                    'detail': output,
+                    'status': 'complete',
+                    'is_error': False,
+                })
+                yield sse('delta', {'content': output})
+                status = 'complete'
+                store.finish_turn(cid, token, message_id, output, status)
+                yield sse('done', {'message_id': message_id})
+                return
+            if plain_continuation and not payload.force_tools:
+                yield sse('status', {'label': '正在结合上一轮回答继续生成'})
+                async with asyncio.timeout(180):
+                    async for event in stream_model(
+                        settings,
+                        key,
+                        messages,
+                        request.app.state.model_transport,
+                        emit_events=True,
+                    ):
+                        if await request.is_disconnected() or not store.turn_active(cid, token):
+                            return
+                        if event['type'] == 'reasoning':
+                            yield sse('reasoning', {'content': event['content']})
+                        elif event['type'] == 'content':
+                            chunks.append(event['content'])
+                            yield sse('delta', {'content': event['content']})
+                output = ''.join(chunks)
+                if not output:
+                    raise ModelError('模型没有返回有效内容，请重试。')
+                status = 'complete'
+                store.finish_turn(cid, token, message_id, output, status)
+                yield sse('done', {'message_id': message_id})
+                return
+
+            yield sse('status', {'label': '正在理解任务并规划执行步骤'})
+            streamed_text = ''
+            final_text = ''
+            result_error = ''
+            workspace = (
+                store.path.parent
+                / 'hermes-workspaces'
+                / str(store.workspace_id)
+                / str(store.company_id or 0)
+            )
+            async for event in _hermes_events(request, prompt, workspace):
+                if await request.is_disconnected() or not store.turn_active(cid, token):
+                    return
+                event_type = event.get('type')
+                if event_type == 'content':
+                    content = event.get('content') or ''
+                    if content:
+                        streamed_text += content
+                        chunks.append(content)
+                        yield sse('delta', {'content': content})
+                elif event_type == 'tool_start':
+                    yield sse('tool_start', {
+                        key: event[key]
+                        for key in ('id', 'name', 'label', 'detail')
+                        if key in event
+                    })
+                elif event_type == 'tool_result':
+                    yield sse('tool_result', {
+                        key: event[key]
+                        for key in ('id', 'name', 'label', 'detail', 'duration_ms', 'is_error')
+                        if key in event
+                    })
+                elif event_type == 'result':
+                    final_text = event.get('text') or ''
+                    result_error = event.get('error') or ''
+                    if result_error or int(event.get('exit_code') or 0) != 0:
+                        raise HermesError(result_error or 'Hermes 工具执行失败。')
+
+            if final_text and final_text != streamed_text:
+                if not streamed_text:
+                    chunks.append(final_text)
+                    yield sse('delta', {'content': final_text})
+                elif final_text.startswith(streamed_text):
+                    remainder = final_text[len(streamed_text):]
+                    chunks.append(remainder)
+                    yield sse('delta', {'content': remainder})
+                else:
+                    chunks[:] = [final_text]
+                    yield sse('replace', {'content': final_text})
+            output = ''.join(chunks)
+            if not output:
+                raise HermesError('Hermes 没有返回有效结果。')
+            status = 'complete'
+            store.finish_turn(cid, token, message_id, output, status)
+            yield sse('done', {'message_id': message_id})
+        except (ModelError, CustomerToolError, HermesError, TimeoutError) as exc:
+            status = 'error'
+            if isinstance(exc, TimeoutError):
+                detail = '工具任务超过时间上限，请缩小问题范围后重试。'
+            else:
+                detail = str(exc)
+            yield sse('error', {'detail': detail})
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception('Hermes conversation stream failed')
+            status = 'error'
+            yield sse('error', {'detail': 'Hermes 工具暂时无法完成请求。'})
+        finally:
+            store.finish_turn(cid, token, message_id, ''.join(chunks), status)
+
+    return StreamingResponse(
+        generate(),
+        media_type='text/event-stream',
+        headers={'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no'},
+    )
 

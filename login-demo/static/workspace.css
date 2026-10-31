@@ -88,6 +88,50 @@
   content:''; display:inline-block; width:5px; height:14px; margin-left:3px; vertical-align:-2px;
   background:#94A3B8; animation:thinkingBlink .9s steps(1,end) infinite;
 }
+.tool-trace {
+  display:grid; gap:0; margin:12px 0 0; padding:0; list-style:none;
+  border-top:1px solid rgba(228,231,236,.72);
+}
+.tool-step {
+  position:relative; display:grid; grid-template-columns:14px minmax(0,1fr); gap:9px;
+  padding:11px 0 3px; min-width:0;
+}
+.tool-step:not(:last-child)::after {
+  content:''; position:absolute; left:6px; top:26px; bottom:-10px; width:1px; background:#E4E7EC;
+}
+.tool-status {
+  position:relative; width:13px; height:13px; margin-top:3px; border-radius:50%;
+  border:1.5px solid #CBD5E1; background:#fff; box-sizing:border-box;
+}
+.tool-step.is-running .tool-status {
+  border-color:#CBD5E1; border-top-color:var(--primary); animation:thinkingSpin .75s linear infinite;
+}
+.tool-step.is-complete .tool-status {
+  border:0; background:#D9F2E5; box-shadow:inset 0 0 0 3px #fff;
+}
+.tool-step.is-complete .tool-status::after {
+  content:''; position:absolute; width:5px; height:8px; margin:1px 0 0 3.5px;
+  border-right:1.5px solid #1E7A4C; border-bottom:1.5px solid #1E7A4C;
+  transform:rotate(45deg);
+}
+.tool-step.is-failed .tool-status { border:0; background:#FBE4E4; box-shadow:inset 0 0 0 3px #fff; }
+.tool-step.is-failed .tool-status::after {
+  content:''; position:absolute; width:1.5px; height:7px; margin:3px 0 0 5.75px;
+  background:#B33A3A; transform:rotate(45deg);
+}
+.tool-copy { min-width:0; }
+.tool-heading { display:flex; align-items:center; gap:7px; min-width:0; flex-wrap:wrap; }
+.tool-heading strong { font-size:12.5px; font-weight:600; color:#344054; }
+.tool-heading code {
+  max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  padding:1px 5px; border-radius:4px; background:#F2F4F7; color:#667085;
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:10.5px;
+}
+.tool-state { font-size:10.5px; color:#98A2B3; white-space:nowrap; }
+.tool-detail {
+  margin:4px 0 0; color:#7A8699; font-size:11.5px; line-height:1.55;
+  overflow-wrap:anywhere;
+}
 @keyframes thinkingSpin { to { transform:rotate(360deg); } }
 @keyframes thinkingBlink { 50% { opacity:0; } }
 @media (max-width: 800px) {
@@ -103,4 +147,5 @@
   .chat-selectors { display:none; }
   .thinking-body { padding-left:20px; }
   .thinking-text { max-height:190px; }
+  .tool-heading code { max-width:120px; }
 }

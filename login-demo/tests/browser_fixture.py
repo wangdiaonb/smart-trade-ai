@@ -50,10 +50,54 @@ def model(request):
     return httpx.Response(200,stream=ReasoningStream(),headers={'content-type':'text/event-stream'})
 
 
+async def hermes_streamer(prompt, working_directory):
+    del prompt, working_directory
+    yield {
+        'type': 'tool_start',
+        'id': 'fixture-search',
+        'name': 'web_search',
+        'label': '网页搜索',
+        'detail': '工业水泵配件 德国采购商',
+    }
+    await asyncio.sleep(0.7)
+    yield {
+        'type': 'tool_result',
+        'id': 'fixture-search',
+        'name': 'web_search',
+        'label': '网页搜索',
+        'detail': '找到 4 条公开来源，正在核对采购商官网',
+        'duration_ms': 700,
+    }
+    yield {
+        'type': 'tool_start',
+        'id': 'fixture-browser',
+        'name': 'browser_navigate',
+        'label': '浏览器操作',
+        'detail': 'https://acme.example/about',
+    }
+    await asyncio.sleep(0.7)
+    yield {
+        'type': 'tool_result',
+        'id': 'fixture-browser',
+        'name': 'browser_navigate',
+        'label': '浏览器操作',
+        'detail': '已读取企业介绍和产品分类页面',
+        'duration_ms': 700,
+    }
+    final = '已完成客户官网核验：该客户主营工业水泵，产品页覆盖维修配件和替换件，建议从备件采购需求切入。'
+    yield {'type': 'content', 'content': final}
+    yield {'type': 'result', 'text': final, 'exit_code': 0, 'error': ''}
+
+
 if __name__=='__main__':
     with tempfile.TemporaryDirectory(prefix='workroom-browser-') as folder:
         path=Path(folder)/'accounts.sqlite3'
-        app=create_app(path,'ui-fixture-secret',model_transport=httpx.MockTransport(model))
+        app=create_app(
+            path,
+            'ui-fixture-secret',
+            model_transport=httpx.MockTransport(model),
+            hermes_streamer=hermes_streamer,
+        )
         for index in [1,2]:
             user=register_user(path,f'ui-{index}@example.com','ui-fixture-password')
             with connection(path) as conn:
@@ -63,6 +107,13 @@ if __name__=='__main__':
             if index==1:
                 store=WorkspaceStore(path,tenant)
                 store.update_company({'name':'隔离浏览器测试公司','products':'水泵配件'})
-                store.create_customer({'name':'Browser Buyer','contact':'Alice','country':'德国','tier':'A'})
+                store.create_customer({
+                    'name':'Browser Buyer',
+                    'contact':'Alice',
+                    'country':'德国',
+                    'tier':'A',
+                    'email':'alice@browser.example',
+                    'backup_email':'sales@browser.example',
+                })
                 ChatStore(path,tenant).save_settings({'api_key_encrypted':app.state.secret_store.encrypt(wid,'fake-ui-key')})
         uvicorn.run(app,host='127.0.0.1',port=int(os.getenv('PORT','8018')),log_level='warning')

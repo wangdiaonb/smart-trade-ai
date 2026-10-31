@@ -23,7 +23,6 @@ from database import connection
 from tenancy import TenantContext, require_tenant
 from secret_store import SecretStore
 from skill_catalog import SkillCatalog
-from hermes_bridge import run_hermes
 
 APP_DIR = Path(__file__).resolve().parent
 STATIC_DIR = APP_DIR / "static"
@@ -44,6 +43,7 @@ def create_app(
     skill_dir: Path | None = None,
     osint_runner=None,
     hermes_runner=None,
+    hermes_streamer=None,
 ) -> FastAPI:
     resolved_db_path = Path(db_path) if db_path is not None else DEFAULT_DB_PATH
     init_db(resolved_db_path)
@@ -68,7 +68,8 @@ def create_app(
     app.state.db_path = resolved_db_path
     app.state.model_transport = model_transport
     app.state.osint_runner = osint_runner or default_osint_runner
-    app.state.hermes_runner = hermes_runner or run_hermes
+    app.state.hermes_runner = hermes_runner
+    app.state.hermes_streamer = hermes_streamer
     app.state.secret_store = SecretStore(resolved_db_path.parent / 'model-encryption.key')
     app.state.skill_catalog = SkillCatalog(skill_dir if skill_dir is not None else APP_DIR.parent / 'skills')
 

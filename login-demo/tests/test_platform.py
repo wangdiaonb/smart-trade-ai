@@ -21,6 +21,27 @@ def response_stream(text):
     return 'data: '+json.dumps({'choices':[{'delta':{'content':text}}]},ensure_ascii=False)+'\n\ndata: [DONE]\n\n'
 
 
+def sse_events(body):
+    events = []
+    for block in body.replace('\r\n', '\n').split('\n\n'):
+        lines = block.splitlines()
+        event = next((line[6:].strip() for line in lines if line.startswith('event:')), '')
+        raw = '\n'.join(line[5:].strip() for line in lines if line.startswith('data:'))
+        if event and raw:
+            events.append((event, json.loads(raw)))
+    return events
+
+
+def sse_text(body):
+    content = ''
+    for event, data in sse_events(body):
+        if event == 'delta':
+            content += data.get('content', '')
+        elif event == 'replace':
+            content = data.get('content', '')
+    return content
+
+
 def tool_call_stream(arguments):
     encoded=json.dumps(arguments,ensure_ascii=False)
     split=max(1,len(encoded)//2)
@@ -67,7 +88,7 @@ def test_hermes_default_timeout_allows_long_site_audits(monkeypatch, tmp_path):
     assert captured['timeout'] >= 300
 
 
-def test_hermes_command_budgets_its_run_below_the_process_timeout(monkeypatch, tmp_path):
+def test_hermes_command_omits_gateway_unsupported_budget_option(monkeypatch, tmp_path):
     captured = {}
 
     def fake_run(command, **kwargs):
@@ -82,10 +103,9 @@ def test_hermes_command_budgets_its_run_below_the_process_timeout(monkeypatch, t
 
     assert result == '按时完成'
     command = captured['command']
-    budget = int(command[command.index('--run-budget') + 1])
     max_turns = int(command[command.index('--max-turns') + 1])
-    assert 0 < budget <= 240
-    assert budget < captured['timeout']
+    assert '--run-budget' not in command
+    assert captured['timeout'] >= 300
     assert 1 <= max_turns <= 30
 
 
@@ -186,7 +206,8 @@ def test_hermes_tool_mode_uses_business_context_and_persists_reply(tmp_path):
         'content':'查一下客户官网并总结','skill_id':'b2b-platform','web_search':False,
     })
     assert response.status_code==200
-    assert response.json()['content']=='Hermes 工具执行完成'
+    assert sse_text(response.text)=='Hermes 工具执行完成'
+    assert ('status', {'label': '正在理解任务并规划执行步骤'}) in sse_events(response.text)
     assert 'Hermes Company' in prompts[0][0]
     assert 'Hermes Buyer' in prompts[0][0]
     assert '当前没有网页搜索' not in prompts[0][0]
@@ -212,7 +233,7 @@ def test_forced_tool_retry_does_not_downgrade_continuation_to_the_model(tmp_path
     })
 
     assert response.status_code == 200, response.text
-    assert response.json()['content'] == 'Hermes 已重新抓取网页并完成诊断'
+    assert sse_text(response.text) == 'Hermes 已重新抓取网页并完成诊断'
     assert len(prompts) == 1
 
 
@@ -236,7 +257,7 @@ def test_hermes_continuation_uses_normal_model_instead_of_tool_agent(tmp_path):
     })
 
     assert response.status_code==200,response.text
-    assert response.json()['content']=='这是继续后的直接回复'
+    assert sse_text(response.text)=='这是继续后的直接回复'
     assert len(captured)==1
     assert '上一轮的完整回答' in json.dumps(captured[0],ensure_ascii=False)
     assert 'tools' not in captured[0]
@@ -291,7 +312,9 @@ def test_customer_import_request_uses_native_tool_before_hermes(tmp_path):
     })
 
     assert response.status_code==200,response.text
-    assert '已写入 2 家客户' in response.json()['content']
+    assert '已写入 2 家客户' in sse_text(response.text)
+    assert any(event == 'tool_result' and data['name'] == 'import_customers'
+               for event, data in sse_events(response.text))
     customers=client.get('/api/customers').json()
     assert customers['total']==2
     assert {item['name'] for item in customers['items']}=={'ShopChiEm','SMstore.vn'}
@@ -305,7 +328,7 @@ def test_customer_import_request_uses_native_tool_before_hermes(tmp_path):
         'content':'将这2家写入我的客户库','skill_id':'b2b-lead-generation','web_search':False,
     })
     assert repeated.status_code==200
-    assert '跳过重复 2 家' in repeated.json()['content']
+    assert '跳过重复 2 家' in sse_text(repeated.text)
     assert client.get('/api/customers').json()['total']==2
 
 
@@ -327,8 +350,9 @@ def test_customer_import_tool_is_atomic_when_any_record_is_invalid(tmp_path):
         'content':'把这些客户写入客户库','skill_id':'b2b-lead-generation','web_search':False,
     })
 
-    assert response.status_code==502
-    assert '没有写入任何客户' in response.json()['detail']
+    assert response.status_code==200
+    assert any(event == 'error' and '没有写入任何客户' in data['detail']
+               for event, data in sse_events(response.text))
     assert client.get('/api/customers').json()['total']==0
 
 
@@ -348,8 +372,9 @@ def test_customer_import_direct_stream_uses_native_tool(tmp_path):
     })
 
     assert response.status_code==200
-    assert 'event: tool' in response.text
-    assert '正在写入客户库' in response.text
+    assert 'event: tool_start' in response.text
+    assert 'event: tool_result' in response.text
+    assert '写入客户库' in response.text
     assert 'event: delta' in response.text
     assert 'event: done' in response.text
     assert 'event: error' not in response.text

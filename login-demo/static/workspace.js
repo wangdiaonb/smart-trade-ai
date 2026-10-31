@@ -1,7 +1,8 @@
 import {api} from './api.js';
 import {canOpenConversation, contextNavigationState, isChatBusy, shouldUseHermesTools} from './chat-state.js';
 import {readSSE} from './sse.js';
-import {thinkingLabel, thinkingText} from './thinking.js';
+import {applyToolEvent, thinkingLabel, thinkingText, toolLabel, toolStatusLabel} from './thinking.js';
+import {customerEmailChoice, customerEmailChoices, preferredCustomerEmail} from './research.js';
 
 const app = document.getElementById('app');
 const dialog = document.getElementById('app-dialog');
@@ -65,7 +66,32 @@ function thinkingView(message) {
     statusText:message.thinkingStatus,
     thinking:message.thinking,
     state:message.thinkingState,
+    tools:message.tools||[],
   };
+}
+function thinkingBody(message) {
+  const view=thinkingView(message);
+  const tools=(message.tools||[]).map(tool=>{
+    const status=tool.status||'running';
+    const duration=Number.isFinite(tool.durationMs)?` · ${elapsedToolDuration(tool.durationMs)}`:'';
+    return `<li class="tool-step is-${esc(status)}">
+      <span class="tool-status" aria-hidden="true"></span>
+      <div class="tool-copy">
+        <div class="tool-heading">
+          <strong>${esc(tool.label||toolLabel(tool.name))}</strong>
+          <code>${esc(tool.name||'unknown_tool')}</code>
+          <span class="tool-state">${esc(toolStatusLabel(status)+duration)}</span>
+        </div>
+        ${tool.detail?`<p class="tool-detail">${esc(tool.detail)}</p>`:''}
+      </div>
+    </li>`;
+  }).join('');
+  return `<div class="thinking-text">${esc(thinkingText(view))}</div>
+    ${tools?`<ul class="tool-trace" aria-label="工具执行过程">${tools}</ul>`:''}`;
+}
+function elapsedToolDuration(milliseconds) {
+  if(milliseconds<1000)return '不足 1 秒';
+  return `${Math.max(1,Math.round(milliseconds/1000))} 秒`;
 }
 function thinkingPanel(message) {
   if(message.role!=='assistant'||message.thinking===undefined)return '';
@@ -76,7 +102,7 @@ function thinkingPanel(message) {
       <span class="thinking-label">${esc(thinkingLabel(view))}</span>
       <span class="thinking-chevron" aria-hidden="true"></span>
     </summary>
-    <div class="thinking-body"><div class="thinking-text">${esc(thinkingText(view))}</div></div>
+    <div class="thinking-body">${thinkingBody(message)}</div>
   </details>`;
 }
 function updateThinkingView(message) {
@@ -87,7 +113,7 @@ function updateThinkingView(message) {
   panel.classList.toggle('is-failed',message.thinkingState==='failed');
   panel.open=Boolean(message.thinkingOpen);
   panel.querySelector('.thinking-label').textContent=thinkingLabel(view);
-  panel.querySelector('.thinking-text').textContent=thinkingText(view);
+  panel.querySelector('.thinking-body').innerHTML=thinkingBody(message);
   const box=document.getElementById('chat-messages');
   if(box)box.scrollTop=box.scrollHeight;
 }
@@ -207,7 +233,7 @@ async function sendChat(event) {
   if(!state.settings?.has_key){openModelSettings();toast('请先配置模型 API Key','error');return;}
   state.messages.push({role:'user',content});state.messages.push({
     role:'assistant',content:'',thinking:'',thinkingActive:true,thinkingOpen:true,
-    thinkingStartedAt:Date.now(),thinkingState:'active',
+    thinkingStartedAt:Date.now(),thinkingState:'active',tools:[],
   });
   const assistant=state.messages.at(-1);state.chatController=new AbortController();
   state.lastToolRequestFailed=false;
@@ -216,6 +242,49 @@ async function sendChat(event) {
   renderChat();
   document.getElementById('chat-send').disabled=true;
   document.getElementById('chat-stop').hidden=false;
+  function renderAssistantBody() {
+    const body=document.querySelector('.message.assistant:last-of-type .msg-body');
+    if(body)body.innerHTML=md(assistant.content)+sourceLinks(assistant.sources);
+  }
+  function handleChatEvent(type,data) {
+    if(type==='sources'){
+      assistant.sources=data.sources||[];
+      renderAssistantBody();
+    }
+    if(type==='reasoning'){
+      assistant.thinking+=data.content||'';
+      assistant.thinkingStatus='模型返回的思考摘要';
+      updateThinkingView(assistant);
+    }
+    if(type==='status'){
+      assistant.thinkingStatus=data.label||'正在执行操作';
+      updateThinkingView(assistant);
+    }
+    if(type==='tool'){
+      const tool=applyToolEvent(assistant,'tool_start',data);
+      assistant.thinkingStatus=`正在使用 ${tool.label}`;
+      updateThinkingView(assistant);
+    }
+    if(type==='tool_start'||type==='tool_result'){
+      const tool=applyToolEvent(assistant,type,data);
+      assistant.thinkingStatus=type==='tool_start'
+        ? `正在使用 ${tool.label}`
+        : `正在整理 ${tool.label} 的结果`;
+      updateThinkingView(assistant);
+    }
+    if(type==='delta'){
+      assistant.thinkingStatus='正在组织回答';
+      assistant.content+=data.content||'';
+      renderAssistantBody();
+      updateThinkingView(assistant);
+    }
+    if(type==='replace'){
+      assistant.thinkingStatus='正在整理最终回答';
+      assistant.content=data.content||'';
+      renderAssistantBody();
+      updateThinkingView(assistant);
+    }
+  }
   try {
     if(!state.conversationId){
       const body={title:content.slice(0,80)};
@@ -225,44 +294,30 @@ async function sendChat(event) {
     }
     const requestBody={content,skill_id:context.skill,document_ids:state.chatDocumentId?[state.chatDocumentId]:[],web_search:state.webSearch,force_tools:useHermesTools&&retryFailedToolTurn};
     if(useHermesTools){
-      const result=await api(`/api/conversations/${state.conversationId}/hermes`,{method:'POST',body:requestBody,signal:state.chatController.signal});
-      assistant.content=result.content;finishThinking(assistant);
-      const body=document.querySelector('.message.assistant:last-of-type .msg-body');
-      if(body)body.innerHTML=md(assistant.content)+sourceLinks(assistant.sources);
-      toast('Hermes 工具任务已完成','success');return;
+      const response=await api(`/api/conversations/${state.conversationId}/hermes`,{
+        method:'POST',body:requestBody,raw:true,signal:state.chatController.signal,
+      });
+      await readSSE(response,handleChatEvent);
+      finishThinking(assistant);
+      toast('Hermes 工具任务已完成','success');
+      return;
     }
     const response=await api(`/api/conversations/${state.conversationId}/stream`,{
       method:'POST',body:requestBody,raw:true,signal:state.chatController.signal,
     });
-    await readSSE(response,(type,data)=>{
-      if(type==='sources'){
-        assistant.sources=data.sources||[];
-        const body=document.querySelector('.message.assistant:last-of-type .msg-body');
-        if(body)body.innerHTML=md(assistant.content)+sourceLinks(assistant.sources);
-      }
-      if(type==='reasoning'){
-        assistant.thinking+=data.content;
-        assistant.thinkingStatus='正在思考';
-        updateThinkingView(assistant);
-      }
-      if(type==='tool'){
-        assistant.thinkingStatus=data.label||'正在执行操作';
-        updateThinkingView(assistant);
-      }
-      if(type==='delta'){
-        assistant.thinkingStatus='正在组织回答';
-        assistant.content+=data.content;
-        const body=document.querySelector(`.message.assistant:last-of-type .msg-body`);
-        if(body){body.innerHTML=md(assistant.content)+sourceLinks(assistant.sources);updateThinkingView(assistant);}
-      }
-    });
+    await readSSE(response,handleChatEvent);
     finishThinking(assistant);
     toast('回复已生成','success');
   } catch(error) {
     if(useHermesTools)state.lastToolRequestFailed=true;
     finishThinking(assistant,'failed');
     if(error.name==='AbortError'){toast('已停止生成');}
-    else{safeError(error);if(state.messages.at(-1)?.content==='')state.messages.pop();if(state.view==='chat')renderChat();}
+    else{
+      safeError(error);
+      const last=state.messages.at(-1);
+      if(last?.content===''&&!last?.thinking&&!(last?.tools||[]).length)state.messages.pop();
+      if(state.view==='chat')renderChat();
+    }
   } finally {
     clearInterval(thinkingTimer);
     state.chatController=null;
@@ -500,12 +555,41 @@ async function taskEditor(id=null,preset={}) {
 async function renderOsint() {
   state.view='osint';setActive('osint');closeMobile();
   const [settings,reports]=await Promise.all([api('/api/research/settings'),api('/api/research/reports')]);
+  const emailChoices=customerEmailChoices(state.customers);
   app.innerHTML=`<div class="panel-view"><div class="panel-topbar"><h2>客户背调</h2><button class="btn-xs" id="research-settings" type="button">搜索配置</button></div><div class="panel-body">
-    <form id="research-form" class="document-upload"><label style="flex:2">目标邮箱、域名、官网或核验问题<input id="research-query" required maxlength="2000" placeholder="例如：buyer@acme.com 或 acme.com"></label><label>关联客户<select id="research-customer"><option value="">不关联客户</option>${state.customers.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label><button class="btn btn-primary" type="submit">搜索公开信息</button><button class="btn" id="deep-research" type="button">深度背调</button></form>
+    <form id="research-form" class="document-upload">
+      <label>目标邮箱<select id="research-email" ${emailChoices.length?'':'disabled'}><option value="">${emailChoices.length?'从客户管理选择邮箱':'客户管理中暂无邮箱'}</option>${emailChoices.map(choice=>`<option value="${esc(choice.value)}">${esc(choice.customerName)} · ${esc(choice.email)} · ${esc(choice.kind)}</option>`).join('')}</select></label>
+      <label style="flex:2">核验目标<input id="research-query" required maxlength="2000" placeholder="邮箱、域名、官网或核验问题"></label>
+      <label>关联客户<select id="research-customer"><option value="">不关联客户</option>${state.customers.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label>
+      <button class="btn btn-primary" type="submit">搜索公开信息</button><button class="btn" id="deep-research" type="button">深度背调</button>
+    </form>
     <p class="settings-note">${settings.has_key?'已配置 Tavily 搜索。':'尚未配置 Tavily 搜索，可点击右上角配置。'}</p>
     <div class="simple-list">${reports.length?reports.map(report=>`<div class="simple-item"><div><strong>${esc(report.query)}</strong><br><small>${report.status==='success'?'完成':'失败'} · ${report.customer_name||'未关联客户'} · ${report.source_count||0} 个来源 · ${new Date(report.created_at).toLocaleString('zh-CN')}</small></div><button class="btn-xs" type="button" data-report="${report.id}">查看</button></div>`).join(''):'<div class="empty-list">暂无背调记录</div>'}</div>
   </div></div>`;
   document.getElementById('research-settings').addEventListener('click',openResearchSettings);
+  const emailSelect=document.getElementById('research-email');
+  const researchQuery=document.getElementById('research-query');
+  const customerSelect=document.getElementById('research-customer');
+  emailSelect.addEventListener('change',()=>{
+    const choice=customerEmailChoice(emailChoices,emailSelect.value);
+    if(!choice)return;
+    researchQuery.value=choice.email;
+    customerSelect.value=String(choice.customerId);
+  });
+  customerSelect.addEventListener('change',()=>{
+    if(!customerSelect.value)return;
+    const choice=preferredCustomerEmail(emailChoices,customerSelect.value);
+    const previous=customerEmailChoice(emailChoices,emailSelect.value);
+    const target=researchQuery.value.trim();
+    const targetLooksLikeEmail=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target);
+    emailSelect.value=choice?.value||'';
+    if(choice)researchQuery.value=choice.email;
+    else if(previous||targetLooksLikeEmail)researchQuery.value='';
+  });
+  researchQuery.addEventListener('input',()=>{
+    const choice=customerEmailChoice(emailChoices,emailSelect.value);
+    if(choice&&researchQuery.value.trim()!==choice.email)emailSelect.value='';
+  });
   document.getElementById('deep-research').addEventListener('click',async()=>{
     const target=document.getElementById('research-query').value.trim();if(!target)return;
     const cid=document.getElementById('research-customer').value;const body={target};if(cid)body.customer_id=Number(cid);
