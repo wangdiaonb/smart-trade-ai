@@ -1,11 +1,14 @@
 import {api} from './api.js';
+import {canOpenConversation, contextNavigationState, isChatBusy, shouldUseHermesTools} from './chat-state.js';
 import {readSSE} from './sse.js';
+import {thinkingLabel, thinkingText} from './thinking.js';
 
 const app = document.getElementById('app');
 const dialog = document.getElementById('app-dialog');
 const dialogTitle = document.getElementById('dialog-title');
 const dialogBody = document.getElementById('dialog-body');
 const sidebar = document.getElementById('sidebar');
+const BUSY_MESSAGE = '当前回复还在进行中，请等待完成或点击停止后再操作。';
 
 const CONTEXTS = {
   daily: {title:'今日简报', skill:'b2b-daily-automation', intro:'整理今天最值得处理的客户、订单和跟进事项。', prompts:['生成今天的早安简报','总结本周客户跟进进度','今天应该优先联系哪些客户？']},
@@ -21,7 +24,7 @@ const VIEW_TITLES = {customers:'客户管理',documents:'文档库',osint:'客�
 const state = {
   company:null,email:'',customers:[],libraries:[],skills:[],settings:null,
   view:'chat',context:'daily',conversationId:null,messages:[],chatController:null,
-  chatCustomerId:null,chatDocumentId:null,libraryId:null,webSearch:true,hermesTools:true,
+  chatCustomerId:null,chatDocumentId:null,libraryId:null,webSearch:true,hermesTools:true,lastToolRequestFailed:false,
 };
 
 function esc(value) {
@@ -54,6 +57,57 @@ function safeError(error) {
   if (error.name==='AbortError') return;
   toast(error.message||'操作失败','error');
 }
+function thinkingView(message) {
+  return {
+    active:message.thinkingActive,
+    startedAt:message.thinkingStartedAt,
+    durationMs:message.thinkingDurationMs,
+    statusText:message.thinkingStatus,
+    thinking:message.thinking,
+    state:message.thinkingState,
+  };
+}
+function thinkingPanel(message) {
+  if(message.role!=='assistant'||message.thinking===undefined)return '';
+  const view=thinkingView(message);
+  return `<details class="thinking-panel${message.thinkingActive?' is-active':''}${message.thinkingState==='failed'?' is-failed':''}" ${message.thinkingOpen?'open':''}>
+    <summary class="thinking-summary">
+      <span class="thinking-marker" aria-hidden="true"></span>
+      <span class="thinking-label">${esc(thinkingLabel(view))}</span>
+      <span class="thinking-chevron" aria-hidden="true"></span>
+    </summary>
+    <div class="thinking-body"><div class="thinking-text">${esc(thinkingText(view))}</div></div>
+  </details>`;
+}
+function updateThinkingView(message) {
+  const panel=document.querySelector('.message.assistant:last-of-type .thinking-panel');
+  if(!panel)return;
+  const view=thinkingView(message);
+  panel.classList.toggle('is-active',Boolean(message.thinkingActive));
+  panel.classList.toggle('is-failed',message.thinkingState==='failed');
+  panel.open=Boolean(message.thinkingOpen);
+  panel.querySelector('.thinking-label').textContent=thinkingLabel(view);
+  panel.querySelector('.thinking-text').textContent=thinkingText(view);
+  const box=document.getElementById('chat-messages');
+  if(box)box.scrollTop=box.scrollHeight;
+}
+function finishThinking(message,state='complete') {
+  if(message.thinking===undefined)return;
+  message.thinkingActive=false;
+  message.thinkingState=state;
+  message.thinkingOpen=false;
+  message.thinkingDurationMs=Date.now()-message.thinkingStartedAt;
+  updateThinkingView(message);
+}
+function trackThinking(message,mode='model') {
+  return setInterval(()=>{
+    if(!message.thinkingActive)return;
+    if(mode==='hermes'&&Date.now()-message.thinkingStartedAt>1500){
+      message.thinkingStatus='正在调用工具并整理结果';
+    }
+    updateThinkingView(message);
+  },1000);
+}
 
 async function loadBootstrap() {
   const [me,company,companies,skills,settings,customers,libraries]=await Promise.all([
@@ -80,7 +134,10 @@ function renderChat(ctx=state.context,title=CONTEXTS[ctx]?.title||'AI 对话') {
   const messages=state.messages.length?state.messages.map(message=>`
     <article class="message ${message.role}">
       <div class="msg-avatar">${message.role==='user'?'你':'AI'}</div>
-      <div class="msg-body" data-message-id="${message.id||''}">${message.role==='assistant'?md(message.content):esc(message.content)}</div>
+      <div class="msg-main">
+        ${thinkingPanel(message)}
+        <div class="msg-body" data-message-id="${message.id||''}">${message.role==='assistant'?md(message.content):esc(message.content)}</div>
+      </div>
     </article>`).join(''):`
     <div class="chat-empty">
       <div class="empty-symbol">✦</div><h2>${esc(title)}</h2><p>${esc(context.intro)}</p>
@@ -108,6 +165,9 @@ function renderChat(ctx=state.context,title=CONTEXTS[ctx]?.title||'AI 对话') {
       </form>
     </div>`;
   bindChat();
+  const busy=isChatBusy(state);
+  document.getElementById('chat-send').disabled=busy;
+  document.getElementById('chat-stop').hidden=!busy;
   requestAnimationFrame(()=>{const box=document.getElementById('chat-messages');box.scrollTop=box.scrollHeight;});
 }
 function bindChat() {
@@ -115,25 +175,43 @@ function bindChat() {
   document.getElementById('chat-document').addEventListener('change',event=>{state.chatDocumentId=event.target.value?Number(event.target.value):null;});
   document.getElementById('chat-web-search').addEventListener('change',event=>{state.webSearch=event.target.checked;});
   document.getElementById('chat-hermes-tools').addEventListener('change',event=>{state.hermesTools=event.target.checked;});
-  document.getElementById('new-conversation').addEventListener('click',()=>{state.conversationId=null;state.messages=[];state.chatCustomerId=null;state.chatDocumentId=null;renderChat();});
+  document.getElementById('new-conversation').addEventListener('click',()=>beginNewChat());
   app.querySelectorAll('[data-prompt]').forEach(button=>button.addEventListener('click',()=>{
     const input=document.getElementById('chat-input');input.value=button.dataset.prompt;input.focus();
   }));
-  document.getElementById('chat-stop').addEventListener('click',()=>{state.chatController?.abort();});
+  document.getElementById('chat-stop').addEventListener('click',stopChat);
   document.getElementById('chat-form').addEventListener('submit',sendChat);
   document.getElementById('chat-input').addEventListener('keydown',event=>{
     if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();document.getElementById('chat-form').requestSubmit();}
   });
 }
+async function stopChat(){
+  const controller=state.chatController;
+  if(!controller)return;
+  const conversationId=state.conversationId;
+  const cancellation=conversationId
+    ?api(`/api/conversations/${conversationId}/cancel`,{method:'POST',body:{}}).catch(()=>{})
+    :Promise.resolve();
+  controller.abort();
+  await cancellation;
+}
 async function sendChat(event) {
   event.preventDefault();
+  if(isChatBusy(state)){toast(BUSY_MESSAGE,'error');return;}
   const input=document.getElementById('chat-input');
   const content=input.value.trim();
   if(!content)return;
   const context=CONTEXTS[state.context]||CONTEXTS.daily;
+  const retryFailedToolTurn=Boolean(state.lastToolRequestFailed);
+  const useHermesTools=shouldUseHermesTools(state.hermesTools,content,retryFailedToolTurn);
   if(!state.settings?.has_key){openModelSettings();toast('请先配置模型 API Key','error');return;}
-  state.messages.push({role:'user',content});state.messages.push({role:'assistant',content:''});
+  state.messages.push({role:'user',content});state.messages.push({
+    role:'assistant',content:'',thinking:'',thinkingActive:true,thinkingOpen:true,
+    thinkingStartedAt:Date.now(),thinkingState:'active',
+  });
   const assistant=state.messages.at(-1);state.chatController=new AbortController();
+  state.lastToolRequestFailed=false;
+  const thinkingTimer=trackThinking(assistant,useHermesTools?'hermes':'model');
   input.value='';
   renderChat();
   document.getElementById('chat-send').disabled=true;
@@ -145,10 +223,13 @@ async function sendChat(event) {
       const thread=await api('/api/conversations',{method:'POST',body,signal:state.chatController.signal});
       state.conversationId=thread.id;
     }
-    const requestBody={content,skill_id:context.skill,document_ids:state.chatDocumentId?[state.chatDocumentId]:[],web_search:state.webSearch};
-    if(state.hermesTools){
+    const requestBody={content,skill_id:context.skill,document_ids:state.chatDocumentId?[state.chatDocumentId]:[],web_search:state.webSearch,force_tools:useHermesTools&&retryFailedToolTurn};
+    if(useHermesTools){
       const result=await api(`/api/conversations/${state.conversationId}/hermes`,{method:'POST',body:requestBody,signal:state.chatController.signal});
-      assistant.content=result.content;renderChat();toast('Hermes 工具任务已完成','success');return;
+      assistant.content=result.content;finishThinking(assistant);
+      const body=document.querySelector('.message.assistant:last-of-type .msg-body');
+      if(body)body.innerHTML=md(assistant.content)+sourceLinks(assistant.sources);
+      toast('Hermes 工具任务已完成','success');return;
     }
     const response=await api(`/api/conversations/${state.conversationId}/stream`,{
       method:'POST',body:requestBody,raw:true,signal:state.chatController.signal,
@@ -159,17 +240,31 @@ async function sendChat(event) {
         const body=document.querySelector('.message.assistant:last-of-type .msg-body');
         if(body)body.innerHTML=md(assistant.content)+sourceLinks(assistant.sources);
       }
+      if(type==='reasoning'){
+        assistant.thinking+=data.content;
+        assistant.thinkingStatus='正在思考';
+        updateThinkingView(assistant);
+      }
+      if(type==='tool'){
+        assistant.thinkingStatus=data.label||'正在执行操作';
+        updateThinkingView(assistant);
+      }
       if(type==='delta'){
+        assistant.thinkingStatus='正在组织回答';
         assistant.content+=data.content;
         const body=document.querySelector(`.message.assistant:last-of-type .msg-body`);
-        if(body){body.innerHTML=md(assistant.content)+sourceLinks(assistant.sources);const box=document.getElementById('chat-messages');box.scrollTop=box.scrollHeight;}
+        if(body){body.innerHTML=md(assistant.content)+sourceLinks(assistant.sources);updateThinkingView(assistant);}
       }
     });
+    finishThinking(assistant);
     toast('回复已生成','success');
   } catch(error) {
+    if(useHermesTools)state.lastToolRequestFailed=true;
+    finishThinking(assistant,'failed');
     if(error.name==='AbortError'){toast('已停止生成');}
-    else{safeError(error);if(state.messages.at(-1)?.content==='')state.messages.pop();renderChat();}
+    else{safeError(error);if(state.messages.at(-1)?.content==='')state.messages.pop();if(state.view==='chat')renderChat();}
   } finally {
+    clearInterval(thinkingTimer);
     state.chatController=null;
     const send=document.getElementById('chat-send');if(send)send.disabled=false;
     const stop=document.getElementById('chat-stop');if(stop)stop.hidden=true;
@@ -437,8 +532,29 @@ async function renderHistory() {
   state.view='history';setActive('history');closeMobile();
   const conversations=await api('/api/conversations');
   app.innerHTML=`<div class="panel-view"><div class="panel-topbar"><h2>对话记录</h2></div><div class="panel-body"><div class="simple-list">${conversations.length?conversations.map(c=>`<div class="simple-item"><div><strong>${esc(c.title)}</strong><br><small>${new Date(c.updated_at).toLocaleString('zh-CN')}</small></div><div class="simple-actions"><button class="btn-xs" type="button" data-open-chat="${c.id}">打开</button><button class="btn-xs" type="button" data-delete-chat="${c.id}">删除</button></div></div>`).join(''):'<div class="empty-list">暂无对话记录</div>'}</div></div></div>`;
-  app.querySelectorAll('[data-open-chat]').forEach(button=>button.addEventListener('click',async()=>{try{const thread=await api(`/api/conversations/${button.dataset.openChat}`);state.conversationId=thread.id;state.messages=thread.messages;const skill=thread.messages.at(-1)?.skill_id||'general';state.context=Object.entries(CONTEXTS).find(([,v])=>v.skill===skill)?.[0]||'daily';renderChat(state.context,thread.title);}catch(error){safeError(error);}}));
-  app.querySelectorAll('[data-delete-chat]').forEach(button=>button.addEventListener('click',async()=>{if(!confirm('确定删除这段对话？'))return;try{await api(`/api/conversations/${button.dataset.deleteChat}`,{method:'DELETE'});await renderHistory();toast('对话已删除');}catch(error){safeError(error);}}));
+  app.querySelectorAll('[data-open-chat]').forEach(button=>button.addEventListener('click',async()=>{
+    try{
+      const thread=await api(`/api/conversations/${button.dataset.openChat}`);
+      if(!canOpenConversation(state,thread.id)){toast(BUSY_MESSAGE,'error');return;}
+      const skill=thread.messages.at(-1)?.skill_id||'general';
+      const context=Object.entries(CONTEXTS).find(([,value])=>value.skill===skill)?.[0]||'daily';
+      if(isChatBusy(state)&&String(state.conversationId)===String(thread.id)){
+        state.context=context;
+        renderChat(context,thread.title);
+        toast('已回到正在生成的对话');
+        return;
+      }
+      state.conversationId=thread.id;state.messages=thread.messages;state.context=context;
+      renderChat(context,thread.title);
+    }catch(error){safeError(error);}
+  }));
+  app.querySelectorAll('[data-delete-chat]').forEach(button=>button.addEventListener('click',async()=>{
+    if(isChatBusy(state)&&String(state.conversationId)===String(button.dataset.deleteChat)){
+      toast(BUSY_MESSAGE,'error');return;
+    }
+    if(!confirm('确定删除这段对话？'))return;
+    try{await api(`/api/conversations/${button.dataset.deleteChat}`,{method:'DELETE'});await renderHistory();toast('对话已删除');}catch(error){safeError(error);}
+  }));
 }
 
 function openModelSettings() {
@@ -474,12 +590,20 @@ function openSkillsHelp() {
 function openOnboarding() {
   showDialog('欢迎使用 Trade AI','<div class="onboarding-card" style="padding:28px;border-radius:14px"><div style="font-size:42px;text-align:center">🎉</div><h3 style="text-align:center;margin:12px 0">从第一次客户开发开始</h3><p class="settings-note" style="text-align:center;margin-bottom:18px">先在“公司设置”补齐产品与定位，再到“客户管理”添加客户，随后可使用今日简报、开发信、背调和定时任务。</p><div class="simple-list"><div class="simple-item">🏢 完善公司资料</div><div class="simple-item">👤 添加第一位客户</div><div class="simple-item">💬 从客户开发开始对话</div></div><div class="dialog-actions"><button class="btn" id="onboard-later" type="button">稍后</button><button class="btn btn-primary" id="onboard-start" type="button">开始客户开发</button></div></div>');
   dialogBody.querySelector('#onboard-later').addEventListener('click',closeDialog);
-  dialogBody.querySelector('#onboard-start').addEventListener('click',()=>{closeDialog();newChat('lead');});
+  dialogBody.querySelector('#onboard-start').addEventListener('click',()=>{closeDialog();beginNewChat('lead');});
 }
-function newChat(ctx){state.context=ctx;state.conversationId=null;state.messages=[];state.chatCustomerId=null;state.chatDocumentId=null;renderChat(ctx);}
+function openContext(ctx){
+  if(!CONTEXTS[ctx])return;
+  Object.assign(state,contextNavigationState(state,ctx));
+  renderChat(ctx);
+}
+function beginNewChat(ctx=state.context){
+  if(isChatBusy(state)){toast(BUSY_MESSAGE,'error');return;}
+  state.context=ctx;state.conversationId=null;state.messages=[];state.chatCustomerId=null;state.chatDocumentId=null;renderChat(ctx);
+}
 async function download(path,name){try{const response=await api(path,{raw:true});const url=URL.createObjectURL(await response.blob());const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(error){safeError(error);}}
 
-document.querySelectorAll('[data-context]').forEach(item=>item.addEventListener('click',()=>newChat(item.dataset.context)));
+document.querySelectorAll('[data-context]').forEach(item=>item.addEventListener('click',()=>openContext(item.dataset.context)));
 document.querySelectorAll('[data-view]').forEach(item=>item.addEventListener('click',()=>{
   const view=item.dataset.view;
   if(view==='customers')renderCustomers().catch(safeError);

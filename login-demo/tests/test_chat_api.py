@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import time
 
 import httpx
 import pytest
@@ -94,6 +95,64 @@ def test_stream_persists_messages_and_injects_only_current_context(setup):
     assert "乙公司秘密" not in sent and "保密产品" not in sent
 
 
+def test_stream_forwards_reasoning_without_persisting_it(tmp_path):
+    def provider(request):
+        content = (
+            'data: {"choices":[{"delta":{"reasoning_content":"先核对产品。","content":null}}]}\n\n'
+            'data: {"choices":[{"delta":{"reasoning_content":"再组织回复。","content":null}}]}\n\n'
+            'data: {"choices":[{"delta":{"content":"最终回复"},"finish_reason":"stop"}]}\n\n'
+            'data: [DONE]\n\n'
+        )
+        return httpx.Response(200, content=content.encode(), headers={"content-type": "text/event-stream"})
+
+    app = create_app(tmp_path / "db.sqlite3", "test-secret", model_transport=httpx.MockTransport(provider))
+    client = TestClient(app)
+    assert client.post('/api/register', json={"email": "reasoning@example.com", "password": "correct-horse-1"}).status_code == 201
+    configure(client)
+    cid = conversation(client)
+
+    response = client.post(f'/api/conversations/{cid}/stream', json={"content": "介绍产品"})
+
+    assert response.status_code == 200
+    assert response.text.count('event: reasoning') == 2
+    assert 'data: {"content": "先核对产品。"}' in response.text
+    assert 'data: {"content": "再组织回复。"}' in response.text
+    assert 'event: delta' in response.text
+    messages = client.get(f'/api/conversations/{cid}').json()["messages"]
+    assert messages[-1]["content"] == "最终回复"
+    assert "先核对产品" not in messages[-1]["content"]
+
+
+def test_customer_import_retries_without_forced_tool_choice(tmp_path):
+    attempts = []
+
+    def provider(request):
+        payload = json.loads(request.content)
+        attempts.append(payload.get('tool_choice'))
+        if payload.get('tool_choice') is not None:
+            return httpx.Response(400, json={"error": {"message": "Thinking mode does not support this tool_choice"}})
+        content = (
+            'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"import_customers",'
+            '"arguments":"{\\"customers\\": [{\\"name\\": \\"Retry buyer\\", \\"company_website\\": \\"https://retry.example\\"}]}"}}]}}]}\n\n'
+            'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}\n\n'
+            'data: [DONE]\n\n'
+        )
+        return httpx.Response(200, content=content.encode(), headers={"content-type": "text/event-stream"})
+
+    app = create_app(tmp_path / "retry.sqlite3", "test-secret", model_transport=httpx.MockTransport(provider))
+    client = TestClient(app)
+    assert client.post('/api/register', json={"email": "retry@example.com", "password": "correct-horse-1"}).status_code == 201
+    configure(client)
+    cid = conversation(client)
+
+    response = client.post(f'/api/conversations/{cid}/stream', json={"content": "把这些客户写入客户库"})
+
+    assert response.status_code == 200
+    assert attempts == ['required', None]
+    assert '已写入 1 家客户' in response.text
+    assert client.get('/api/customers').json()['total'] == 1
+
+
 def test_missing_config_does_not_create_a_phantom_turn(setup):
     first, _, _, captured = setup
     cid = conversation(first)
@@ -177,6 +236,21 @@ def test_busy_conversation_rejects_parallel_turn_and_stale_cancel_cannot_unlock_
     messages = first.get(f'/api/conversations/{cid}').json()['messages']
     assert messages[1]['status'] == 'cancelled'
     assert messages[1]['content'] == 'partial'
+
+
+def test_turn_lease_outlives_long_hermes_tool_runs(setup):
+    first, _, path, _ = setup
+    user = first.get('/api/me').json()
+    workspace = first.get('/api/workspace').json()
+    company = first.get('/api/company').json()
+    store = ChatStore(path, TenantContext(user['id'], workspace['id'], user['email'], company['id']))
+    cid = conversation(first)
+
+    store.claim_turn(cid, '检查网站', 'b2b-platform')
+
+    with connection(path) as conn:
+        busy_until = conn.execute('SELECT busy_until FROM conversations WHERE id=?', (cid,)).fetchone()[0]
+    assert busy_until - time.time() >= 360
 
 
 def test_encrypted_key_remains_usable_after_app_restart(setup):

@@ -77,7 +77,7 @@ class ChatStore(WorkspaceStore):
                 raise HTTPException(409, '这段对话正在生成回复，请稍候或停止后重试。')
             conn.execute("UPDATE messages SET status='error' WHERE conversation_id=? AND workspace_id=? AND status='streaming'", (cid, self.workspace_id))
             title = content[:40] if row['title'] == '新对话' else row['title']
-            conn.execute("UPDATE conversations SET busy_token=?,busy_until=?,title=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND workspace_id=? AND company_id=?", (token, time.time()+240, title, cid, self.workspace_id, self.company_id))
+            conn.execute("UPDATE conversations SET busy_token=?,busy_until=?,title=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND workspace_id=? AND company_id=?", (token, time.time()+420, title, cid, self.workspace_id, self.company_id))
             conn.execute("INSERT INTO messages(workspace_id,conversation_id,turn_token,role,content,skill_id) VALUES (?,?,?,'user',?,?)", (self.workspace_id, cid, token, content, skill_id))
             cursor = conn.execute("INSERT INTO messages(workspace_id,conversation_id,turn_token,role,status,skill_id) VALUES (?,?,?,'assistant','streaming',?)", (self.workspace_id, cid, token, skill_id))
         return token, cursor.lastrowid

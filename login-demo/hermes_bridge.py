@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -11,18 +12,31 @@ class HermesError(Exception):
     pass
 
 
+_ANSI_ESCAPE = re.compile(r'\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+DEFAULT_HERMES_TIMEOUT = 360
+DEFAULT_HERMES_RUN_BUDGET = 240
+DEFAULT_HERMES_MAX_TURNS = 24
+
+
 def _clean_stdout(output: str) -> str:
     lines = []
-    for line in output.replace('\r\n', '\n').splitlines():
-        if not line.strip():
+    for line in _ANSI_ESCAPE.sub('', output).replace('\r\n', '\n').splitlines():
+        stripped = line.strip()
+        if not stripped:
             continue
-        if line.lstrip().startswith('⚠️') and '模型' in line:
+        if stripped.startswith(('│', '┃', '@@', '+++', '---', '… 省略')):
+            continue
+        if stripped.startswith('⚠️') and '模型' in line:
             continue
         lines.append(line)
     return '\n'.join(lines).strip()
 
 
-async def run_hermes(prompt: str, working_directory: Path, timeout: int = 180) -> str:
+async def run_hermes(
+    prompt: str,
+    working_directory: Path,
+    timeout: int = DEFAULT_HERMES_TIMEOUT,
+) -> str:
     executable = shutil.which('hermes')
     if not executable:
         raise HermesError('Hermes 命令不可用，请先安装并启动 Hermes。')
@@ -30,7 +44,17 @@ async def run_hermes(prompt: str, working_directory: Path, timeout: int = 180) -
 
     def invoke():
         return subprocess.run(
-            [executable, 'chat', '-q', prompt, '-Q'],
+            [
+                executable,
+                'chat',
+                '-q',
+                prompt,
+                '--run-budget',
+                str(DEFAULT_HERMES_RUN_BUDGET),
+                '--max-turns',
+                str(DEFAULT_HERMES_MAX_TURNS),
+                '-Q',
+            ],
             cwd=working_directory,
             capture_output=True,
             text=True,

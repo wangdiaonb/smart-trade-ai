@@ -1,4 +1,6 @@
+import asyncio
 import json
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -8,11 +10,83 @@ from fastapi.testclient import TestClient
 
 from app import create_app
 from automation_runner import run_due_automations
+from chat_store import ChatStore
+from customer_tools import wants_customer_import
 from database import connection
+from hermes_bridge import _clean_stdout, run_hermes
+from tenancy import TenantContext
 
 
 def response_stream(text):
     return 'data: '+json.dumps({'choices':[{'delta':{'content':text}}]},ensure_ascii=False)+'\n\ndata: [DONE]\n\n'
+
+
+def tool_call_stream(arguments):
+    encoded=json.dumps(arguments,ensure_ascii=False)
+    split=max(1,len(encoded)//2)
+    events=[
+        {'choices':[{'delta':{'tool_calls':[{'index':0,'id':'call_customers','type':'function','function':{'name':'import_customers','arguments':encoded[:split]}}]}}]},
+        {'choices':[{'delta':{'tool_calls':[{'index':0,'function':{'arguments':encoded[split:]}}]},'finish_reason':'tool_calls'}]},
+    ]
+    return ''.join('data: '+json.dumps(event,ensure_ascii=False)+'\n\n' for event in events)+'data: [DONE]\n\n'
+
+
+def seed_completed_turn(path, client, conversation_id, assistant_content):
+    user=client.get('/api/me').json()
+    workspace=client.get('/api/workspace').json()
+    company=client.get('/api/company').json()
+    store=ChatStore(path,TenantContext(user['id'],workspace['id'],user['email'],company['id']))
+    token,message_id=store.claim_turn(conversation_id,'查找潜在客户','b2b-lead-generation')
+    store.finish_turn(conversation_id,token,message_id,assistant_content,'complete')
+
+
+def test_hermes_output_drops_ansi_tool_previews_but_keeps_final_answer():
+    output=(
+        '\x1b[2m│\x1b[0m probe_hello.py\n'
+        '\x1b[38;2;139;134;130m@@ -0,0 +1 @@\x1b[0m\n'
+        '\x1b[2m│\x1b[0m +print("hello")\n'
+        '… 省略 13 行 diff\n'
+        '这是最终业务回答。'
+    )
+    assert _clean_stdout(output)=='这是最终业务回答。'
+
+
+def test_hermes_default_timeout_allows_long_site_audits(monkeypatch, tmp_path):
+    captured = {}
+
+    def fake_run(*args, **kwargs):
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(args[0], 0, '工具任务完成', '')
+
+    monkeypatch.setattr('hermes_bridge.shutil.which', lambda _name: 'hermes')
+    monkeypatch.setattr('hermes_bridge.subprocess.run', fake_run)
+
+    result = asyncio.run(run_hermes('检查 https://burrow.com/', tmp_path))
+
+    assert result == '工具任务完成'
+    assert captured['timeout'] >= 300
+
+
+def test_hermes_command_budgets_its_run_below_the_process_timeout(monkeypatch, tmp_path):
+    captured = {}
+
+    def fake_run(command, **kwargs):
+        captured['command'] = command
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(command, 0, '按时完成', '')
+
+    monkeypatch.setattr('hermes_bridge.shutil.which', lambda _name: 'hermes')
+    monkeypatch.setattr('hermes_bridge.subprocess.run', fake_run)
+
+    result = asyncio.run(run_hermes('检查 https://burrow.com/', tmp_path))
+
+    assert result == '按时完成'
+    command = captured['command']
+    budget = int(command[command.index('--run-budget') + 1])
+    max_turns = int(command[command.index('--max-turns') + 1])
+    assert 0 < budget <= 240
+    assert budget < captured['timeout']
+    assert 1 <= max_turns <= 30
 
 
 @pytest.fixture
@@ -115,8 +189,177 @@ def test_hermes_tool_mode_uses_business_context_and_persists_reply(tmp_path):
     assert response.json()['content']=='Hermes 工具执行完成'
     assert 'Hermes Company' in prompts[0][0]
     assert 'Hermes Buyer' in prompts[0][0]
+    assert '当前没有网页搜索' not in prompts[0][0]
+    assert '必须实际调用' in prompts[0][0]
     assert str(prompts[0][1]).endswith('0') is False
     assert client.get(f'/api/conversations/{cid}').json()['messages'][-1]['content']=='Hermes 工具执行完成'
+
+
+def test_forced_tool_retry_does_not_downgrade_continuation_to_the_model(tmp_path):
+    prompts = []
+
+    async def fake_hermes(prompt, working_directory):
+        prompts.append(prompt)
+        return 'Hermes 已重新抓取网页并完成诊断'
+
+    app = create_app(tmp_path / 'forced-retry.sqlite3', 'test-secret', hermes_runner=fake_hermes)
+    client = TestClient(app)
+    client.post('/api/register', json={'email': 'retry-tool@example.com', 'password': 'correct-horse-1'})
+    cid = client.post('/api/conversations', json={'title': '网站诊断'}).json()['id']
+
+    response = client.post(f'/api/conversations/{cid}/hermes', json={
+        'content': '继续', 'skill_id': 'b2b-platform', 'force_tools': True,
+    })
+
+    assert response.status_code == 200, response.text
+    assert response.json()['content'] == 'Hermes 已重新抓取网页并完成诊断'
+    assert len(prompts) == 1
+
+
+def test_hermes_continuation_uses_normal_model_instead_of_tool_agent(tmp_path):
+    captured=[]
+    def provider(request):
+        captured.append(json.loads(request.content))
+        return httpx.Response(200,content=response_stream('这是继续后的直接回复').encode())
+    async def fake_hermes(prompt,working_directory):
+        raise AssertionError('plain continuation must not invoke Hermes')
+    path=tmp_path/'continuation.sqlite3'
+    app=create_app(path,'test-secret',model_transport=httpx.MockTransport(provider),hermes_runner=fake_hermes)
+    client=TestClient(app)
+    client.post('/api/register',json={'email':'continuation@example.com','password':'correct-horse-1'})
+    client.put('/api/model-settings',json={'model':'deepseek-chat','api_key':'fake-key'})
+    cid=client.post('/api/conversations',json={'title':'继续测试'}).json()['id']
+    seed_completed_turn(path,client,cid,'上一轮的完整回答')
+
+    response=client.post(f'/api/conversations/{cid}/hermes',json={
+        'content':'继续','skill_id':'b2b-lead-generation','web_search':True,
+    })
+
+    assert response.status_code==200,response.text
+    assert response.json()['content']=='这是继续后的直接回复'
+    assert len(captured)==1
+    assert '上一轮的完整回答' in json.dumps(captured[0],ensure_ascii=False)
+    assert 'tools' not in captured[0]
+
+
+def test_continuation_stream_skips_web_search_and_uses_conversation_history(tmp_path):
+    captured=[]
+    def provider(request):
+        assert request.url.host=='api.deepseek.com'
+        captured.append(json.loads(request.content))
+        return httpx.Response(200,content=response_stream('继续写出的下一段').encode())
+    path=tmp_path/'continuation-stream.sqlite3'
+    app=create_app(path,'test-secret',model_transport=httpx.MockTransport(provider))
+    client=TestClient(app)
+    client.post('/api/register',json={'email':'continuation-stream@example.com','password':'correct-horse-1'})
+    client.put('/api/model-settings',json={'model':'deepseek-chat','api_key':'fake-key'})
+    cid=client.post('/api/conversations',json={'title':'流式继续'}).json()['id']
+    seed_completed_turn(path,client,cid,'上一轮的回答正文')
+
+    response=client.post(f'/api/conversations/{cid}/stream',json={
+        'content':'继续','skill_id':'b2b-lead-generation','web_search':True,
+    })
+
+    assert response.status_code==200
+    assert '继续写出的下一段' in response.text
+    assert 'event: error' not in response.text
+    assert len(captured)==1
+    assert '上一轮的回答正文' in json.dumps(captured[0],ensure_ascii=False)
+
+
+def test_customer_import_request_uses_native_tool_before_hermes(tmp_path):
+    captured=[]
+    arguments={'customers':[
+        {'name':'ShopChiEm','company_website':'https://shopchiem.com','phone':'0912 588 558','country':'越南','tier':'A','buyer_type':'进口货批发/招代理'},
+        {'name':'SMstore.vn','company_website':'https://smstore.vn','email':'lienhe.smstore.vn@gmail.com','country':'越南','tier':'B','buyer_type':'情趣零售/电商'},
+    ]}
+    def provider(request):
+        captured.append(json.loads(request.content))
+        return httpx.Response(200,content=tool_call_stream(arguments).encode(),headers={'content-type':'text/event-stream'})
+    async def fake_hermes(prompt,working_directory):
+        raise AssertionError('customer import must not invoke Hermes')
+    path=tmp_path/'native-import.sqlite3'
+    app=create_app(path,'test-secret',model_transport=httpx.MockTransport(provider),hermes_runner=fake_hermes)
+    client=TestClient(app)
+    client.post('/api/register',json={'email':'native-import@example.com','password':'correct-horse-1'})
+    client.put('/api/model-settings',json={'model':'deepseek-chat','api_key':'fake-key'})
+    cid=client.post('/api/conversations',json={'title':'客户入库'}).json()['id']
+    seed_completed_turn(path,client,cid,'1. ShopChiEm\n2. SMstore.vn')
+
+    response=client.post(f'/api/conversations/{cid}/hermes',json={
+        'content':'将这2家写入我的客户库','skill_id':'b2b-lead-generation','web_search':True,
+    })
+
+    assert response.status_code==200,response.text
+    assert '已写入 2 家客户' in response.json()['content']
+    customers=client.get('/api/customers').json()
+    assert customers['total']==2
+    assert {item['name'] for item in customers['items']}=={'ShopChiEm','SMstore.vn'}
+    assert captured[0]['tools'][0]['function']['name']=='import_customers'
+    assert captured[0]['tool_choice']=='required'
+    assert captured[0]['thinking']=={'type':'disabled'}
+    sent=json.dumps(captured[0],ensure_ascii=False)
+    assert 'ShopChiEm' in sent and 'SMstore.vn' in sent
+
+    repeated=client.post(f'/api/conversations/{cid}/hermes',json={
+        'content':'将这2家写入我的客户库','skill_id':'b2b-lead-generation','web_search':False,
+    })
+    assert repeated.status_code==200
+    assert '跳过重复 2 家' in repeated.json()['content']
+    assert client.get('/api/customers').json()['total']==2
+
+
+def test_customer_import_tool_is_atomic_when_any_record_is_invalid(tmp_path):
+    arguments={'customers':[
+        {'name':'Valid buyer','company_website':'https://valid.example','tier':'A'},
+        {'name':'Invalid buyer','company_website':'https://invalid.example','tier':'D'},
+    ]}
+    app=create_app(
+        tmp_path/'invalid-import.sqlite3','test-secret',
+        model_transport=httpx.MockTransport(lambda request:httpx.Response(200,content=tool_call_stream(arguments).encode())),
+    )
+    client=TestClient(app)
+    client.post('/api/register',json={'email':'invalid-import@example.com','password':'correct-horse-1'})
+    client.put('/api/model-settings',json={'model':'deepseek-chat','api_key':'fake-key'})
+    cid=client.post('/api/conversations',json={'title':'无效客户入库'}).json()['id']
+
+    response=client.post(f'/api/conversations/{cid}/hermes',json={
+        'content':'把这些客户写入客户库','skill_id':'b2b-lead-generation','web_search':False,
+    })
+
+    assert response.status_code==502
+    assert '没有写入任何客户' in response.json()['detail']
+    assert client.get('/api/customers').json()['total']==0
+
+
+def test_customer_import_direct_stream_uses_native_tool(tmp_path):
+    arguments={'customers':[{'name':'Direct buyer','company_website':'https://direct.example','tier':'A'}]}
+    app=create_app(
+        tmp_path/'direct-import.sqlite3','test-secret',
+        model_transport=httpx.MockTransport(lambda request:httpx.Response(200,content=tool_call_stream(arguments).encode())),
+    )
+    client=TestClient(app)
+    client.post('/api/register',json={'email':'direct-import@example.com','password':'correct-horse-1'})
+    client.put('/api/model-settings',json={'model':'deepseek-chat','api_key':'fake-key'})
+    cid=client.post('/api/conversations',json={'title':'直接入库'}).json()['id']
+
+    response=client.post(f'/api/conversations/{cid}/stream',json={
+        'content':'把这家保存到客户库','skill_id':'b2b-lead-generation','web_search':True,
+    })
+
+    assert response.status_code==200
+    assert 'event: tool' in response.text
+    assert '正在写入客户库' in response.text
+    assert 'event: delta' in response.text
+    assert 'event: done' in response.text
+    assert 'event: error' not in response.text
+    assert client.get('/api/customers').json()['total']==1
+
+
+def test_customer_import_intent_requires_an_action_not_a_read_only_question():
+    assert wants_customer_import('将这 10 家写入我的客户库')
+    assert wants_customer_import('save these buyers to my customer library')
+    assert not wants_customer_import('客户库里现在有哪些客户？')
 
 
 def test_research_provider_error_is_saved_as_failure_without_fake_answer(tmp_path):

@@ -55,6 +55,41 @@
 .chat-web-search { display:flex; align-items:center; gap:5px; white-space:nowrap; font-size:11px; color:var(--text-secondary); }
 .chat-web-search input { accent-color:var(--primary); }
 .sources a { display:inline-block; margin:3px 8px 3px 0; color:var(--primary); }
+.msg-main { flex:1; min-width:0; }
+.thinking-panel {
+  margin:0 0 14px; border:1px solid #E4E7EC; border-radius:8px; overflow:hidden;
+  background:rgba(255,255,255,.72); color:var(--text-secondary);
+}
+.thinking-summary {
+  display:flex; align-items:center; gap:9px; min-height:40px; padding:0 13px;
+  cursor:pointer; list-style:none; user-select:none; outline:none;
+}
+.thinking-summary::-webkit-details-marker { display:none; }
+.thinking-summary:focus-visible { box-shadow:inset 0 0 0 2px var(--primary); }
+.thinking-marker { width:14px; height:14px; flex:0 0 14px; display:grid; place-items:center; color:#64748B; }
+.thinking-marker::before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; }
+.thinking-panel.is-active .thinking-marker::before {
+  width:11px; height:11px; border:2px solid #CBD5E1; border-top-color:var(--primary); background:transparent;
+  animation:thinkingSpin .75s linear infinite;
+}
+.thinking-panel.is-failed .thinking-marker::before { background:#B33A3A; }
+.thinking-label { flex:1; min-width:0; font-size:12.5px; font-weight:500; color:#596579; }
+.thinking-chevron {
+  width:7px; height:7px; margin:0 2px 3px 3px; border-right:1.5px solid #94A3B8;
+  border-bottom:1.5px solid #94A3B8; transform:rotate(45deg); transition:transform .18s ease;
+}
+.thinking-panel[open] .thinking-chevron { transform:rotate(225deg); margin-bottom:-3px; }
+.thinking-body { padding:0 14px 13px 36px; border-top:1px solid rgba(228,231,236,.72); }
+.thinking-text {
+  padding-top:10px; max-height:260px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere;
+  font-size:12.5px; line-height:1.75; color:#667085;
+}
+.thinking-panel.is-active .thinking-text::after {
+  content:''; display:inline-block; width:5px; height:14px; margin-left:3px; vertical-align:-2px;
+  background:#94A3B8; animation:thinkingBlink .9s steps(1,end) infinite;
+}
+@keyframes thinkingSpin { to { transform:rotate(360deg); } }
+@keyframes thinkingBlink { 50% { opacity:0; } }
 @media (max-width: 800px) {
   .mobile-open { display:flex; position:fixed; z-index:20; left:12px; top:12px; width:38px; height:38px; border:1px solid var(--border); border-radius:8px; align-items:center; justify-content:center; background:#fff; }
   .mobile-close { display:block; border:0; background:transparent; color:#fff; font-size:24px; }
@@ -66,4 +101,6 @@
   .customer-detail-grid,.form-grid,.skill-grid { grid-template-columns:1fr; }
   .panel-topbar { padding:14px 16px 14px 60px; }
   .chat-selectors { display:none; }
+  .thinking-body { padding-left:20px; }
+  .thinking-text { max-height:190px; }
 }

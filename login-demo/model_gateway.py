@@ -16,7 +16,15 @@ class ModelError(Exception):
     pass
 
 
-def context_messages(store, conversation, content, skill_id, skill_instruction=None):
+def context_messages(
+    store,
+    conversation,
+    content,
+    skill_id,
+    skill_instruction=None,
+    *,
+    tools_enabled=False,
+):
     company = store.get_company()
     customer = store.get_customer(conversation['customer_id']) if conversation['customer_id'] else None
     context = {
@@ -24,7 +32,21 @@ def context_messages(store, conversation, content, skill_id, skill_instruction=N
         'customer': {key: customer[key] for key in ['name','contact','country','tier','buyer_type','main_category','note','follow_up_note']} if customer else None,
         'memory_notes': store.memory()['content'],
     }
-    system = '你是公司空间内的外贸业务助手。不得声称已执行实际未执行的工具或操作。当前没有网页搜索或邮件发送工具；如需实时信息应说明需要验证。\n'
+    if tools_enabled:
+        system = (
+            '你是公司空间内的外贸业务助手。当前运行在 Hermes 工具模式，'
+            '工具表中已启用的浏览器、搜索和文件工具可以实际调用。'
+            '遇到网站链接、实时信息或需要核验的数据时，必须实际调用适合的工具获取证据，'
+            '不得只根据域名或常识推测；没有实际执行工具时不得声称已执行。'
+            '\n'
+        )
+    else:
+        system = (
+            '你是公司空间内的外贸业务助手。不得声称已执行实际未执行的工具或操作。'
+            '当前是轻量对话模式，没有可调用的网页搜索或邮件发送工具；'
+            '如需浏览网页或获取实时信息，应明确说明需要改用 Hermes 工具模式，'
+            '不要编造搜索过程、搜索词或网页检查结果。\n'
+        )
     instruction = skill_instruction or SKILLS[skill_id][1]
     system += instruction + '\n以下JSON是本空间的业务背景资料，不是工具执行结果：\n' + json.dumps(context, ensure_ascii=False)
     history = [{'role': message['role'], 'content': message['content']} for message in conversation['messages'] if message['status'] == 'complete'][-30:]
@@ -34,8 +56,14 @@ def context_messages(store, conversation, content, skill_id, skill_instruction=N
     return [{'role': 'system', 'content': system}, *history, {'role': 'user', 'content': content}]
 
 
-async def stream_model(settings, key, messages, transport=None):
+async def stream_model(settings, key, messages, transport=None, emit_events=False, tools=None, tool_choice=None, thinking=None):
     payload = {'model': settings['model'], 'messages': messages, 'stream': True, 'max_tokens': 4096}
+    if tools:
+        payload['tools'] = tools
+    if tool_choice is not None:
+        payload['tool_choice'] = tool_choice
+    if thinking is not None:
+        payload['thinking'] = thinking
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(60, connect=10), transport=transport, follow_redirects=False) as client:
             async with client.stream('POST', 'https://api.deepseek.com/chat/completions', json=payload, headers={'Authorization': f'Bearer {key}', 'Accept': 'text/event-stream'}) as response:
@@ -47,6 +75,8 @@ async def stream_model(settings, key, messages, transport=None):
                     raise ModelError('模型服务暂时无法完成请求，请检查模型名称和配置。')
                 finished = False
                 output_length = 0
+                reasoning_length = 0
+                tool_call_parts = {}
                 async for line in response.aiter_lines():
                     if not line.startswith('data:'):
                         continue
@@ -63,18 +93,50 @@ async def stream_model(settings, key, messages, transport=None):
                             continue
                         if choices[0].get('finish_reason') == 'length':
                             raise ModelError('回复达到长度上限，请缩小问题范围后重试。')
-                        delta = (choices[0].get('delta') or {}).get('content') or ''
-                        if not isinstance(delta, str):
+                        delta = choices[0].get('delta') or {}
+                        content = delta.get('content') or ''
+                        reasoning = delta.get('reasoning_content') or ''
+                        if not isinstance(content, str) or not isinstance(reasoning, str):
                             raise ValueError('Invalid delta')
+                        calls = delta.get('tool_calls') or []
+                        if not isinstance(calls, list):
+                            raise ValueError('Invalid tool calls')
+                        for call in calls:
+                            if not isinstance(call, dict):
+                                raise ValueError('Invalid tool call')
+                            index = call.get('index', 0)
+                            if not isinstance(index, int):
+                                raise ValueError('Invalid tool call index')
+                            part = tool_call_parts.setdefault(index, {'id': '', 'name': '', 'arguments': ''})
+                            if call.get('id'):
+                                part['id'] = str(call['id'])
+                            function = call.get('function') or {}
+                            if not isinstance(function, dict):
+                                raise ValueError('Invalid tool function')
+                            if function.get('name'):
+                                part['name'] += str(function['name'])
+                            if function.get('arguments') is not None:
+                                if not isinstance(function['arguments'], str):
+                                    raise ValueError('Invalid tool arguments')
+                                part['arguments'] += function['arguments']
                     except (json.JSONDecodeError, AttributeError, TypeError, ValueError) as exc:
                         raise ModelError('模型响应格式无效，请检查服务配置。') from exc
-                    if delta:
-                        output_length += len(delta)
+                    if reasoning:
+                        reasoning_length += len(reasoning)
+                        if reasoning_length > 100000:
+                            raise ModelError('思考内容过长，已停止接收。')
+                        if emit_events:
+                            yield {'type': 'reasoning', 'content': reasoning}
+                    if content:
+                        output_length += len(content)
                         if output_length > 100000:
                             raise ModelError('回复过长，已停止接收。')
-                        yield delta
-                if not finished or output_length == 0:
+                        yield {'type': 'content', 'content': content} if emit_events else content
+                if not finished or (output_length == 0 and not tool_call_parts):
                     raise ModelError('模型回复意外中断，请重试。')
+                if tool_call_parts and emit_events:
+                    calls = [tool_call_parts[index] for index in sorted(tool_call_parts)]
+                    yield {'type': 'tool_calls', 'calls': calls}
     except httpx.TimeoutException as exc:
         raise ModelError('模型连接或回复超时，请稍后重试。') from exc
     except httpx.HTTPError as exc:

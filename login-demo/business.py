@@ -1,6 +1,7 @@
 """Workspace-scoped persistence for company profiles and customer records."""
 
 import json
+import re
 from pathlib import Path
 
 from database import connection
@@ -106,6 +107,48 @@ class WorkspaceStore:
             for values in rows:
                 self._insert_customer(conn, values)
         return len(rows)
+
+    def import_customers_deduplicated(self, rows: list[dict]) -> dict:
+        created_names = []
+        skipped_names = []
+        with connection(self.path) as conn:
+            existing = conn.execute(
+                'SELECT name,company_website,email,phone FROM customers WHERE workspace_id=? AND company_id=?',
+                (self.workspace_id, self.company_id),
+            ).fetchall()
+            names = {str(row['name']).strip().casefold() for row in existing}
+            websites = {str(row['company_website']).strip().casefold().rstrip('/') for row in existing if row['company_website']}
+            emails = {str(row['email']).strip().casefold() for row in existing if row['email']}
+            phones = {re.sub(r'\D', '', str(row['phone'])) for row in existing if row['phone']}
+            for values in rows:
+                name = str(values['name']).strip()
+                website = str(values.get('company_website') or '').strip().casefold().rstrip('/')
+                email = str(values.get('email') or '').strip().casefold()
+                phone = re.sub(r'\D', '', str(values.get('phone') or ''))
+                duplicate = (
+                    (bool(website) and website in websites)
+                    or (bool(email) and email in emails)
+                    or (bool(phone) and phone in phones)
+                    or (not website and not email and not phone and name.casefold() in names)
+                )
+                if duplicate:
+                    skipped_names.append(name)
+                    continue
+                self._insert_customer(conn, values)
+                created_names.append(name)
+                names.add(name.casefold())
+                if website:
+                    websites.add(website)
+                if email:
+                    emails.add(email)
+                if phone:
+                    phones.add(phone)
+        return {
+            'created': len(created_names),
+            'skipped': len(skipped_names),
+            'created_names': created_names,
+            'skipped_names': skipped_names,
+        }
 
     def update_customer(self, customer_id: int, values: dict) -> dict | None:
         if not values.keys() <= set(CUSTOMER_FIELDS):
