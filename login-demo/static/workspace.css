@@ -120,11 +120,12 @@ a:focus-visible {
 }
 
 .app-frame {
-  display: flex;
+  display: grid;
   width: min(100%, 1440px);
   height: 100vh;
   height: 100dvh;
-  flex-direction: column;
+  grid-template-columns: 216px minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   margin: 0 auto;
   overflow: hidden;
   background: var(--bg);
@@ -134,6 +135,8 @@ a:focus-visible {
 
 .app-header {
   display: flex;
+  grid-column: 2;
+  grid-row: 1;
   min-height: 62px;
   flex: 0 0 auto;
   align-items: center;
@@ -274,32 +277,38 @@ a:focus-visible {
 
 .workspace-nav {
   display: flex;
-  min-height: 47px;
-  flex: 0 0 auto;
+  min-height: 0;
+  grid-column: 1;
+  grid-row: 1 / -1;
+  flex-direction: column;
   align-items: stretch;
-  gap: 15px;
-  padding: 5px 30px;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--line);
+  gap: 0;
+  padding: 14px 11px 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-right: 1px solid var(--line);
+  border-bottom: 0;
   background: var(--surface);
   scrollbar-width: thin;
 }
 
 .nav-cluster {
-  display: flex;
+  display: grid;
   flex: 0 0 auto;
+  grid-template-columns: 1fr;
   align-items: center;
   gap: 2px;
-  padding-right: 15px;
-  border-right: 1px solid var(--line);
+  padding: 9px 0;
+  border-right: 0;
+  border-bottom: 1px solid var(--line);
 }
 
 .nav-cluster:last-child {
-  border-right: 0;
+  border-bottom: 0;
 }
 
 .nav-cluster-label {
-  margin-right: 5px;
+  margin: 0 0 4px 7px;
   color: var(--subtle);
   font-family: var(--font-mono);
   font-size: 7px;
@@ -311,9 +320,11 @@ a:focus-visible {
 .nav-item {
   position: relative;
   display: inline-flex;
+  width: 100%;
   min-height: 34px;
   flex: 0 0 auto;
   align-items: center;
+  justify-content: flex-start;
   gap: 5px;
   padding: 6px 8px;
   border: 0;
@@ -340,15 +351,18 @@ a:focus-visible {
 
 .nav-item.active::after {
   position: absolute;
-  right: 7px;
-  bottom: 0;
-  left: 7px;
-  height: 2px;
+  top: 7px;
+  right: auto;
+  bottom: 7px;
+  left: 0;
+  width: 2px;
+  height: auto;
   background: var(--blue);
   content: "";
 }
 
 .nav-icon {
+  width: 18px;
   color: var(--subtle);
   font-family: var(--font-mono);
   font-size: 7px;
@@ -372,6 +386,8 @@ a:focus-visible {
 
 .kpi-grid {
   display: grid;
+  grid-column: 2;
+  grid-row: 2;
   min-height: 122px;
   flex: 0 0 auto;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -458,6 +474,8 @@ a:focus-visible {
 
 .main-column {
   display: flex;
+  grid-column: 2;
+  grid-row: 3;
   min-height: 0;
   flex: 1;
   flex-direction: column;
@@ -559,6 +577,8 @@ a:focus-visible {
 
 .app-footer {
   display: flex;
+  grid-column: 2;
+  grid-row: 4;
   min-height: 31px;
   flex: 0 0 auto;
   align-items: center;
@@ -2057,13 +2077,12 @@ button:disabled {
   }
 
   .workspace-nav {
-    gap: 10px;
-    padding-right: 18px;
-    padding-left: 18px;
+    gap: 0;
+    padding: 12px 10px 15px;
   }
 
   .nav-cluster {
-    padding-right: 10px;
+    padding: 8px 0;
   }
 
   .kpi-card {
@@ -2107,6 +2126,11 @@ button:disabled {
 }
 
 @media (max-width: 800px) {
+  .app-frame {
+    display: flex;
+    flex-direction: column;
+  }
+
   .app-header {
     min-height: 56px;
     padding: 8px 14px;
@@ -2143,8 +2167,8 @@ button:disabled {
   .workspace-nav {
     position: fixed;
     top: 0;
-    right: 0;
     bottom: 0;
+    left: 0;
     z-index: var(--z-nav);
     display: flex;
     width: min(340px, calc(100vw - 42px));
@@ -2154,11 +2178,11 @@ button:disabled {
     gap: 0;
     padding: 0 12px 18px;
     overflow-y: auto;
-    border-right: 0;
+    border-right: 1px solid var(--line);
     border-bottom: 0;
-    border-left: 1px solid var(--line);
-    box-shadow: -18px 0 45px rgb(27 29 33 / 12%);
-    transform: translateX(102%);
+    border-left: 0;
+    box-shadow: 18px 0 45px rgb(27 29 33 / 12%);
+    transform: translateX(-102%);
     transition: transform 190ms ease;
   }
 
