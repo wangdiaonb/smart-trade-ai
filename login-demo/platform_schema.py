@@ -11,6 +11,7 @@ TABLES = [
         status TEXT NOT NULL DEFAULT 'success' CHECK(status IN ('success','error')),
         answer TEXT NOT NULL DEFAULT '',
         sources TEXT NOT NULL DEFAULT '[]',
+        details TEXT NOT NULL DEFAULT '{}',
         error TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
         UNIQUE(id,workspace_id)

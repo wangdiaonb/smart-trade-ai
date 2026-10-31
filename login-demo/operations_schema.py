@@ -2,6 +2,7 @@ TABLES = [
     """CREATE TABLE IF NOT EXISTS orders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+        company_id INTEGER NOT NULL,
         customer_id INTEGER NOT NULL REFERENCES customers(id),
         order_no TEXT NOT NULL DEFAULT '', currency TEXT NOT NULL DEFAULT 'USD',
         status TEXT NOT NULL DEFAULT '报价中', delivery_date TEXT NOT NULL DEFAULT '',
@@ -24,12 +25,15 @@ TABLES = [
     """CREATE TABLE IF NOT EXISTS libraries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+        company_id INTEGER NOT NULL,
         name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+        root_path TEXT NOT NULL DEFAULT '',
         UNIQUE(id,workspace_id)
     )""",
     """CREATE TABLE IF NOT EXISTS documents (
         id INTEGER PRIMARY KEY AUTOINCREMENT, workspace_id INTEGER NOT NULL,
         library_id INTEGER NOT NULL, filename TEXT NOT NULL, storage_name TEXT NOT NULL,
+        source_path TEXT NOT NULL DEFAULT '',
         size INTEGER NOT NULL, extracted_text TEXT NOT NULL DEFAULT '',
         extraction_note TEXT NOT NULL DEFAULT '', deleted INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),

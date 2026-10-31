@@ -17,6 +17,7 @@ from chat_api import router as chat_router
 from orders_api import router as orders_router
 from documents_api import router as documents_router
 from research_api import router as research_router
+from research_api import default_osint_runner
 from automation_api import router as automation_router, scheduler_loop
 from database import connection
 from tenancy import TenantContext, require_tenant
@@ -40,6 +41,7 @@ def create_app(
     *,
     model_transport=None,
     skill_dir: Path | None = None,
+    osint_runner=None,
 ) -> FastAPI:
     resolved_db_path = Path(db_path) if db_path is not None else DEFAULT_DB_PATH
     init_db(resolved_db_path)
@@ -63,6 +65,7 @@ def create_app(
 
     app.state.db_path = resolved_db_path
     app.state.model_transport = model_transport
+    app.state.osint_runner = osint_runner or default_osint_runner
     app.state.secret_store = SecretStore(resolved_db_path.parent / 'model-encryption.key')
     app.state.skill_catalog = SkillCatalog(skill_dir if skill_dir is not None else APP_DIR.parent / 'skills')
 

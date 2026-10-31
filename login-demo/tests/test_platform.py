@@ -78,6 +78,21 @@ def test_research_requires_own_key_and_returns_cited_saved_report(app_and_client
     assert 'tavily-private-key' not in raw
 
 
+def test_chat_web_search_injects_sources_and_emits_source_event(app_and_clients):
+    _,first,_,_,captured=app_and_clients
+    first.put('/api/research/settings',json={'api_key':'tavily-private-key'})
+    cid=first.post('/api/conversations',json={'title':'Market check'}).json()['id']
+    response=first.post(
+        f'/api/conversations/{cid}/stream',
+        json={'content':'Acme pumps buyer','skill_id':'b2b-market-analysis','web_search':True},
+    )
+    assert response.status_code==200
+    assert 'event: sources' in response.text
+    assert 'https://acme.example/about' in response.text
+    sent=json.dumps(captured[-1],ensure_ascii=False)
+    assert '公开信息摘要' in sent and 'Acme official site' in sent
+
+
 def test_research_provider_error_is_saved_as_failure_without_fake_answer(tmp_path):
     def search_fail(request):
         return httpx.Response(401,json={'detail':'bad key'})
@@ -91,6 +106,29 @@ def test_research_provider_error_is_saved_as_failure_without_fake_answer(tmp_pat
     reports=client.get('/api/research/reports').json()
     assert reports[0]['status']=='error'
     assert reports[0]['answer']==''
+
+
+def test_deep_osint_runs_orchestrator_and_preserves_layers_per_workspace(tmp_path):
+    async def fake_osint(target):
+        return {
+            'target':target,
+            'target_type':'domain',
+            'overall_rating':'low',
+            'overall_score':90,
+            'flags':[],
+            'layers':{'domain_intel':{'registered':True},'sanctions':{'is_sanctioned':False}},
+            'recommendations':['继续核实采购需求'],
+        }
+    app=create_app(tmp_path/'deep.sqlite3','test-secret',osint_runner=fake_osint)
+    first,second=TestClient(app),TestClient(app)
+    for client,email in [(first,'deep-a@example.com'),(second,'deep-b@example.com')]:
+        client.post('/api/register',json={'email':email,'password':'correct-horse-1'})
+    result=first.post('/api/research/deep',json={'target':'acme.example'})
+    assert result.status_code==201
+    assert result.json()['details']['overall_score']==90
+    assert result.json()['answer'].startswith('综合评级：low')
+    assert second.get('/api/research/reports').json()==[]
+    assert second.get(f'/api/research/reports/{result.json()["id"]}').status_code==404
 
 
 def test_automation_crud_is_scoped_and_manual_run_saves_result(app_and_clients):

@@ -44,7 +44,8 @@ if __name__=='__main__':
             user=register_user(path,f'ui-{index}@example.com','ui-fixture-password')
             with connection(path) as conn:
                 wid=conn.execute('SELECT id FROM workspaces WHERE owner_user_id=?',(user['id'],)).fetchone()[0]
-            tenant=TenantContext(user['id'],wid,user['email'])
+                company_id=conn.execute('SELECT id FROM companies WHERE workspace_id=?',(wid,)).fetchone()[0]
+            tenant=TenantContext(user['id'],wid,user['email'],company_id)
             if index==1:
                 store=WorkspaceStore(path,tenant)
                 store.update_company({'name':'隔离浏览器测试公司','products':'水泵配件'})

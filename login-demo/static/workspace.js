@@ -21,7 +21,7 @@ const VIEW_TITLES = {customers:'客户管理',documents:'文档库',osint:'客�
 const state = {
   company:null,email:'',customers:[],libraries:[],skills:[],settings:null,
   view:'chat',context:'daily',conversationId:null,messages:[],chatController:null,
-  chatCustomerId:null,chatDocumentId:null,libraryId:null,
+  chatCustomerId:null,chatDocumentId:null,libraryId:null,webSearch:true,
 };
 
 function esc(value) {
@@ -56,15 +56,19 @@ function safeError(error) {
 }
 
 async function loadBootstrap() {
-  const [me,company,skills,settings,customers,libraries]=await Promise.all([
-    api('/api/me'),api('/api/company'),api('/api/chat/skills'),api('/api/model-settings'),
+  const [me,company,companies,skills,settings,customers,libraries]=await Promise.all([
+    api('/api/me'),api('/api/company'),api('/api/companies'),api('/api/chat/skills'),api('/api/model-settings'),
     api('/api/customers?limit=100'),api('/api/libraries'),
   ]);
   state.email=me.email;state.company=company;state.skills=skills;state.settings=settings;
   state.customers=customers.items||[];state.libraries=libraries||[];
   document.getElementById('account-email').textContent=me.email;
   const select=document.getElementById('company-select');
-  select.innerHTML=`<option value="${company.id}">${esc(company.name)}</option>`;
+  select.innerHTML=companies.map(item=>`<option value="${item.id}" ${item.id===company.id?'selected':''}>${esc(item.name)}</option>`).join('');
+  select.addEventListener('change',async()=>{
+    try{await api(`/api/companies/${select.value}/select`,{method:'POST',body:{}});location.reload();}
+    catch(error){safeError(error);select.value=String(company.id);}
+  });
 }
 
 function contextButtons(ctx) {
@@ -89,6 +93,7 @@ function renderChat(ctx=state.context,title=CONTEXTS[ctx]?.title||'AI 对话') {
         <div class="chat-selectors">
           <select id="chat-customer" aria-label="关联客户"><option value="">不关联客户</option>${state.customers.map(c=>`<option value="${c.id}" ${String(state.chatCustomerId)===String(c.id)?'selected':''}>${esc(c.name)}</option>`).join('')}</select>
           <select id="chat-document" aria-label="参考文档"><option value="">不参考文档</option>${state.libraries.flatMap(lib=>lib._documents||[]).map(doc=>`<option value="${doc.id}" ${String(state.chatDocumentId)===String(doc.id)?'selected':''}>${esc(doc.filename)}</option>`).join('')}</select>
+          <label class="chat-web-search"><input id="chat-web-search" type="checkbox" ${state.webSearch?'checked':''}>联网搜索</label>
         </div>
         <div class="chat-topbar-actions"><button id="new-conversation" type="button">＋ 新对话</button></div>
       </div>
@@ -107,6 +112,7 @@ function renderChat(ctx=state.context,title=CONTEXTS[ctx]?.title||'AI 对话') {
 function bindChat() {
   document.getElementById('chat-customer').addEventListener('change',event=>{state.chatCustomerId=event.target.value?Number(event.target.value):null;});
   document.getElementById('chat-document').addEventListener('change',event=>{state.chatDocumentId=event.target.value?Number(event.target.value):null;});
+  document.getElementById('chat-web-search').addEventListener('change',event=>{state.webSearch=event.target.checked;});
   document.getElementById('new-conversation').addEventListener('click',()=>{state.conversationId=null;state.messages=[];state.chatCustomerId=null;state.chatDocumentId=null;renderChat();});
   app.querySelectorAll('[data-prompt]').forEach(button=>button.addEventListener('click',()=>{
     const input=document.getElementById('chat-input');input.value=button.dataset.prompt;input.focus();
@@ -138,14 +144,19 @@ async function sendChat(event) {
       state.conversationId=thread.id;
     }
     const response=await api(`/api/conversations/${state.conversationId}/stream`,{
-      method:'POST',body:{content,skill_id:context.skill,document_ids:state.chatDocumentId?[state.chatDocumentId]:[]},
+      method:'POST',body:{content,skill_id:context.skill,document_ids:state.chatDocumentId?[state.chatDocumentId]:[],web_search:state.webSearch},
       raw:true,signal:state.chatController.signal,
     });
     await readSSE(response,(type,data)=>{
+      if(type==='sources'){
+        assistant.sources=data.sources||[];
+        const body=document.querySelector('.message.assistant:last-of-type .msg-body');
+        if(body)body.innerHTML=md(assistant.content)+sourceLinks(assistant.sources);
+      }
       if(type==='delta'){
         assistant.content+=data.content;
         const body=document.querySelector(`.message.assistant:last-of-type .msg-body`);
-        if(body){body.innerHTML=md(assistant.content);const box=document.getElementById('chat-messages');box.scrollTop=box.scrollHeight;}
+        if(body){body.innerHTML=md(assistant.content)+sourceLinks(assistant.sources);const box=document.getElementById('chat-messages');box.scrollTop=box.scrollHeight;}
       }
     });
     toast('回复已生成','success');
@@ -157,6 +168,11 @@ async function sendChat(event) {
     const send=document.getElementById('chat-send');if(send)send.disabled=false;
     const stop=document.getElementById('chat-stop');if(stop)stop.hidden=true;
   }
+}
+
+function sourceLinks(sources=[]){
+  if(!sources.length)return '';
+  return `<div class="sources"><div class="sources-title">公开信息来源</div>${sources.map(source=>`<a href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${esc(source.title||source.url)}</a>`).join('<br>')}</div>`;
 }
 
 async function loadAllDocuments() {
@@ -317,12 +333,18 @@ async function renderDocuments() {
   state.libraryId=active?.id||null;
   app.innerHTML=`<div class="panel-view"><div class="panel-topbar"><h2>文档库</h2><div class="panel-topbar-actions"><button class="btn btn-primary" id="add-library" type="button">＋ 添加文档库</button></div></div><div class="panel-body">
     <div class="form-group" style="margin-bottom:14px"><label>当前文档库</label><select id="library-select">${state.libraries.length?state.libraries.map(lib=>`<option value="${lib.id}" ${lib.id===state.libraryId?'selected':''}>${esc(lib.name)}</option>`).join(''):'<option value="">暂无文档库</option>'}</select></div>
+    ${active?.root_path?`<div class="document-upload"><div style="flex:1"><small class="settings-note">本地文件夹：${esc(active.root_path)}</small></div><button class="btn-xs" id="scan-library" type="button">扫描文件夹</button></div>`:''}
     <form class="document-upload" id="upload-form"><label>上传文件<input id="upload-file" type="file" required accept=".txt,.md,.csv,.pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp"></label><button class="btn btn-primary" type="submit" ${state.libraryId?'':'disabled'}>上传</button></form>
     <div class="simple-list" id="document-list"></div>
   </div></div>`;
   drawDocuments();
   document.getElementById('add-library').addEventListener('click',libraryEditor);
   document.getElementById('library-select').addEventListener('change',event=>{state.libraryId=Number(event.target.value);drawDocuments();});
+  document.getElementById('scan-library')?.addEventListener('click',async event=>{
+    event.target.disabled=true;
+    try{const result=await api(`/api/libraries/${state.libraryId}/scan`,{method:'POST'});toast(`扫描完成，找到 ${result.found} 个可读文件`,'success');await renderDocuments();}
+    catch(error){safeError(error);event.target.disabled=false;}
+  });
   document.getElementById('upload-form').addEventListener('submit',async event=>{
     event.preventDefault();const file=document.getElementById('upload-file').files[0];if(!file||!state.libraryId)return;
     const form=new FormData();form.append('file',file);
@@ -340,7 +362,7 @@ function drawDocuments() {
   target.querySelectorAll('[data-download]').forEach(button=>button.addEventListener('click',()=>download(`/api/documents/${button.dataset.download}/download`,button.dataset.name)));
 }
 function libraryEditor() {
-  showDialog('添加文档库',`<form id="library-form"><div class="form-group"><label>库名称 *</label><input name="name" required maxlength="200"></div><div class="form-group"><label>描述</label><input name="description" maxlength="2000"></div><div class="dialog-actions"><button class="btn" type="button" data-close>取消</button><button class="btn btn-primary" type="submit">添加</button></div></form>`);
+  showDialog('添加文档库',`<form id="library-form"><div class="form-group"><label>库名称 *</label><input name="name" required maxlength="200"></div><div class="form-group"><label>本地文件夹路径</label><input name="root_path" maxlength="2000" placeholder="例如：C:\\Users\\你的用户名\\Documents\\客户资料"></div><p class="settings-note">可以留空并稍后通过页面上传。关联文件夹后，可在文档库页面扫描文本、PDF、Office 文件和常见图片。</p><div class="form-group"><label>描述</label><input name="description" maxlength="2000"></div><div class="dialog-actions"><button class="btn" type="button" data-close>取消</button><button class="btn btn-primary" type="submit">添加</button></div></form>`);
   dialogBody.querySelector('[data-close]').addEventListener('click',closeDialog);
   dialogBody.querySelector('#library-form').addEventListener('submit',async event=>{event.preventDefault();try{const body=Object.fromEntries(new FormData(event.target));await api('/api/libraries',{method:'POST',body});closeDialog();await renderDocuments();toast('文档库已创建','success');}catch(error){safeError(error);}});
 }
@@ -378,11 +400,19 @@ async function renderOsint() {
   state.view='osint';setActive('osint');closeMobile();
   const [settings,reports]=await Promise.all([api('/api/research/settings'),api('/api/research/reports')]);
   app.innerHTML=`<div class="panel-view"><div class="panel-topbar"><h2>客户背调</h2><button class="btn-xs" id="research-settings" type="button">搜索配置</button></div><div class="panel-body">
-    <form id="research-form" class="document-upload"><label style="flex:2">目标公司、官网或核验问题<input id="research-query" required maxlength="2000" placeholder="例如：Acme pumps buyer"></label><label>关联客户<select id="research-customer"><option value="">不关联客户</option>${state.customers.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label><button class="btn btn-primary" type="submit">搜索公开信息</button></form>
+    <form id="research-form" class="document-upload"><label style="flex:2">目标邮箱、域名、官网或核验问题<input id="research-query" required maxlength="2000" placeholder="例如：buyer@acme.com 或 acme.com"></label><label>关联客户<select id="research-customer"><option value="">不关联客户</option>${state.customers.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label><button class="btn btn-primary" type="submit">搜索公开信息</button><button class="btn" id="deep-research" type="button">深度背调</button></form>
     <p class="settings-note">${settings.has_key?'已配置 Tavily 搜索。':'尚未配置 Tavily 搜索，可点击右上角配置。'}</p>
     <div class="simple-list">${reports.length?reports.map(report=>`<div class="simple-item"><div><strong>${esc(report.query)}</strong><br><small>${report.status==='success'?'完成':'失败'} · ${report.customer_name||'未关联客户'} · ${report.source_count||0} 个来源 · ${new Date(report.created_at).toLocaleString('zh-CN')}</small></div><button class="btn-xs" type="button" data-report="${report.id}">查看</button></div>`).join(''):'<div class="empty-list">暂无背调记录</div>'}</div>
   </div></div>`;
   document.getElementById('research-settings').addEventListener('click',openResearchSettings);
+  document.getElementById('deep-research').addEventListener('click',async()=>{
+    const target=document.getElementById('research-query').value.trim();if(!target)return;
+    const cid=document.getElementById('research-customer').value;const body={target};if(cid)body.customer_id=Number(cid);
+    const button=document.getElementById('deep-research');button.disabled=true;button.textContent='背调中…';
+    try{const report=await api('/api/research/deep',{method:'POST',body});showReport(report);await renderOsint();}
+    catch(error){safeError(error);}
+    finally{const current=document.getElementById('deep-research');if(current){current.disabled=false;current.textContent='深度背调';}}
+  });
   document.getElementById('research-form').addEventListener('submit',async event=>{
     event.preventDefault();const query=document.getElementById('research-query').value.trim();const cid=document.getElementById('research-customer').value;
     try{const body={query};if(cid)body.customer_id=Number(cid);const report=await api('/api/research/search',{method:'POST',body});showReport(report);await renderOsint();}catch(error){safeError(error);}
@@ -390,7 +420,10 @@ async function renderOsint() {
   app.querySelectorAll('[data-report]').forEach(button=>button.addEventListener('click',async()=>{try{showReport(await api(`/api/research/reports/${button.dataset.report}`));}catch(error){safeError(error);}}));
 }
 function showReport(report) {
-  showDialog(report.query,`<p class="settings-note">${esc(report.error||'公开信息摘要')}</p><div class="preview-text">${esc(report.answer||'没有可用摘要')}</div><h4 style="margin:16px 0 8px">来源</h4><div class="simple-list">${(report.sources||[]).map(source=>`<div class="simple-item"><div><a href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${esc(source.title||source.url)}</a><br><small>${esc(source.content)}</small></div></div>`).join('')||'<div class="empty-list">没有来源</div>'}</div><div class="dialog-actions"><button class="btn" data-close>关闭</button></div>`);
+  const details=report.details||{};
+  const layers=details.layers&&typeof details.layers==='object'?Object.entries(details.layers).map(([name,layer])=>`<details style="margin:8px 0"><summary>${esc(name)}</summary><pre class="preview-text">${esc(JSON.stringify(layer,null,2))}</pre></details>`).join(''):'';
+  const flags=Array.isArray(details.flags)&&details.flags.length?`<p class="error-text">风险标记：${details.flags.map(esc).join('、')}</p>`:'';
+  showDialog(report.query,`<p class="settings-note">${esc(report.error||'公开信息摘要')}</p><div class="preview-text">${esc(report.answer||'没有可用摘要')}</div>${flags}<div class="simple-list" style="margin-top:12px">${(details.recommendations||[]).map(item=>`<div class="simple-item">${esc(item)}</div>`).join('')}</div>${layers}<h4 style="margin:16px 0 8px">来源</h4><div class="simple-list">${(report.sources||[]).map(source=>`<div class="simple-item"><div><a href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${esc(source.title||source.url)}</a><br><small>${esc(source.content)}</small></div></div>`).join('')||'<div class="empty-list">深度背调不使用搜索来源时会列出各检测层。</div>'}</div><div class="dialog-actions"><button class="btn" data-close>关闭</button></div>`);
   dialogBody.querySelector('[data-close]').addEventListener('click',closeDialog);
 }
 
@@ -419,6 +452,15 @@ function openCompanySettings() {
   dialogBody.querySelector('[data-close]').addEventListener('click',closeDialog);
   dialogBody.querySelector('#company-form').addEventListener('submit',async event=>{event.preventDefault();try{state.company=await api('/api/company',{method:'PUT',body:Object.fromEntries(new FormData(event.target))});closeDialog();document.querySelector('#company-select option').textContent=state.company.name;toast('公司资料已保存','success');}catch(error){safeError(error);}});
 }
+function openCompanyCreate() {
+  showDialog('添加公司',`<form id="company-create-form" class="form-grid"><div class="form-group full"><label>公司名称 *</label><input name="name" required maxlength="200"></div><div class="form-group"><label>联系人</label><input name="contact_name"></div><div class="form-group"><label>邮箱</label><input name="contact_email" type="email"></div><div class="form-group"><label>官网</label><input name="website"></div><div class="form-group"><label>行业</label><input name="industry"></div><div class="form-group full"><label>主营产品</label><textarea name="products" rows="3"></textarea></div><div class="dialog-actions full"><button class="btn" type="button" data-close>取消</button><button class="btn btn-primary" type="submit">创建并切换</button></div></form>`);
+  dialogBody.querySelector('[data-close]').addEventListener('click',closeDialog);
+  dialogBody.querySelector('#company-create-form').addEventListener('submit',async event=>{
+    event.preventDefault();
+    try{await api('/api/companies',{method:'POST',body:Object.fromEntries(new FormData(event.target))});location.reload();}
+    catch(error){safeError(error);}
+  });
+}
 function openSkillsHelp() {
   showDialog(`全部 ${state.skills.length} 个业务技能`,`<p class="settings-note">技能会按当前业务入口自动使用。你也可以在对话提示中写明需要的技能。</p><div class="skill-grid">${state.skills.map(skill=>`<div class="skill-card"><strong>${esc(skill.name)}</strong><p>${esc(skill.description)}</p></div>`).join('')}</div><div class="dialog-actions"><button class="btn" data-close>关闭</button></div>`);
   dialogBody.querySelector('[data-close]').addEventListener('click',closeDialog);
@@ -441,6 +483,7 @@ document.querySelectorAll('[data-view]').forEach(item=>item.addEventListener('cl
   if(view==='history')renderHistory().catch(safeError);
 }));
 document.getElementById('company-settings').addEventListener('click',openCompanySettings);
+document.getElementById('company-add').addEventListener('click',openCompanyCreate);
 document.getElementById('model-settings-button').addEventListener('click',openModelSettings);
 document.getElementById('skills-help-button').addEventListener('click',openSkillsHelp);
 document.getElementById('onboarding-button').addEventListener('click',openOnboarding);

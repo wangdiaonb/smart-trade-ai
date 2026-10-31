@@ -121,6 +121,33 @@ def test_customer_library_associations_are_scoped(clients):
     assert first.get(f'/api/customers/{customer["id"]}/libraries').json()==[]
 
 
+def test_library_can_scan_owned_local_folder_idempotently(clients,tmp_path):
+    first,second=clients
+    folder=tmp_path/'buyer-files';folder.mkdir()
+    (folder/'spec.txt').write_text('Stainless steel pump, model X1',encoding='utf-8')
+    (folder/'ignored.exe').write_bytes(b'MZ')
+    created=first.post('/api/libraries',json={'name':'Local files','root_path':str(folder)})
+    assert created.status_code==201,created.text
+    lib=created.json();assert lib['root_path']==str(folder.resolve())
+    first_scan=first.post(f'/api/libraries/{lib["id"]}/scan')
+    assert first_scan.status_code==200,first_scan.text
+    assert first_scan.json()['found']==1
+    second_scan=first.post(f'/api/libraries/{lib["id"]}/scan')
+    assert second_scan.json()['found']==1
+    documents=first.get(f'/api/libraries/{lib["id"]}/files').json()
+    assert len(documents)==1 and documents[0]['filename']=='spec.txt'
+    doc=documents[0]
+    assert first.get(f'/api/documents/{doc["id"]}/text').json()['text']=='Stainless steel pump, model X1'
+    assert first.get(f'/api/documents/{doc["id"]}/download').content==b'Stainless steel pump, model X1'
+    assert second.get(f'/api/documents/{doc["id"]}/download').status_code==404
+
+
+def test_library_rejects_missing_or_system_folders(clients,tmp_path):
+    first,_=clients
+    assert first.post('/api/libraries',json={'name':'Missing','root_path':str(tmp_path/'missing')}).status_code==422
+    assert first.post('/api/libraries',json={'name':'Root','root_path':str(__import__('pathlib').Path.home())}).status_code==422
+
+
 def test_operations_require_auth(tmp_path):
     client=TestClient(create_app(tmp_path/'db.sqlite3','test-secret'))
     for path in ['/api/orders','/api/libraries','/api/templates','/api/documents/1/download']:

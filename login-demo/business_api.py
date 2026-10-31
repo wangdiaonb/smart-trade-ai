@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import ValidationError
 
 from business import CUSTOMER_FIELDS, WorkspaceStore
-from business_models import CompanyUpdate, CsvImport, CustomerCreate, CustomerUpdate
+from business_models import CompanyUpdate, CsvImport, CustomerCreate, CustomerUpdate, Name
 from database import connection
 from tenancy import TenantContext, require_tenant
 
@@ -23,10 +23,56 @@ def get_store(request: Request, tenant: TenantContext = Depends(require_tenant))
 Store = Annotated[WorkspaceStore, Depends(get_store)]
 
 
+class CompanyCreate(CompanyUpdate):
+    name: Name
+
+
 def found(value):
     if value is None:
         raise HTTPException(404, "Record not found")
     return value
+
+
+@router.get('/companies')
+def list_companies(request: Request, tenant: TenantContext = Depends(require_tenant)):
+    with connection(request.app.state.db_path) as conn:
+        rows = conn.execute(
+            'SELECT id,name,website,contact_name,contact_email,address,industry,products,target_region,agent_identity_md,updated_at '
+            'FROM companies WHERE workspace_id=? ORDER BY id',
+            (tenant.workspace_id,),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+@router.post('/companies', status_code=201)
+def create_company(payload: CompanyCreate, request: Request, tenant: TenantContext = Depends(require_tenant)):
+    values = payload.model_dump(exclude_unset=True)
+    with connection(request.app.state.db_path) as conn:
+        cursor = conn.execute(
+            'INSERT INTO companies(workspace_id,name,website,contact_name,contact_email,address,industry,products,target_region,agent_identity_md) '
+            'VALUES (?,?,?,?,?,?,?,?,?,?)',
+            (
+                tenant.workspace_id, values['name'], values.get('website', ''), values.get('contact_name', ''),
+                values.get('contact_email', ''), values.get('address', ''), values.get('industry', ''),
+                values.get('products', ''), values.get('target_region', ''), values.get('agent_identity_md', ''),
+            ),
+        )
+        company_id = cursor.lastrowid
+    request.session['active_company_id'] = company_id
+    return {'id': company_id, **values}
+
+
+@router.post('/companies/{company_id}/select')
+def select_company(company_id: int, request: Request, tenant: TenantContext = Depends(require_tenant)):
+    with connection(request.app.state.db_path) as conn:
+        row = conn.execute(
+            'SELECT id FROM companies WHERE id=? AND workspace_id=?',
+            (company_id, tenant.workspace_id),
+        ).fetchone()
+    if row is None:
+        raise HTTPException(404, 'Company not found')
+    request.session['active_company_id'] = company_id
+    return {'active_company_id': company_id}
 
 
 @router.get("/company")
@@ -127,10 +173,10 @@ def customer_libraries(customer_id: int, store: Store):
             JOIN libraries
               ON libraries.id = links.library_id
              AND libraries.workspace_id = links.workspace_id
-            WHERE links.customer_id = ? AND links.workspace_id = ?
+            WHERE links.customer_id = ? AND links.workspace_id = ? AND libraries.company_id = ?
             ORDER BY libraries.id DESC
             """,
-            (customer_id, store.workspace_id),
+            (customer_id, store.workspace_id, store.company_id),
         ).fetchall()
     return [dict(row) for row in rows]
 
@@ -140,8 +186,8 @@ def link_customer_library(customer_id: int, library_id: int, store: Store):
     found(store.get_customer(customer_id))
     with connection(store.path) as conn:
         if conn.execute(
-            "SELECT 1 FROM libraries WHERE id = ? AND workspace_id = ?",
-            (library_id, store.workspace_id),
+            "SELECT 1 FROM libraries WHERE id = ? AND workspace_id = ? AND company_id = ?",
+            (library_id, store.workspace_id, store.company_id),
         ).fetchone() is None:
             raise HTTPException(404, "Library not found")
         conn.execute(

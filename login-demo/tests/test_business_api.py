@@ -112,6 +112,25 @@ def test_csv_import_is_atomic_and_rejects_owner_columns(clients):
         assert first.get("/api/customers").json()["total"] == 0
 
 
+def test_account_can_switch_owned_companies_and_business_data_stays_separate(clients):
+    first,second=clients
+    original=first.get('/api/company').json()
+    created=first.post('/api/companies',json={'name':'Second company'})
+    assert created.status_code==201
+    second_company=created.json()
+    assert first.get('/api/company').json()['name']=='Second company'
+    assert first.post('/api/customers',json={'name':'Second buyer'}).status_code==201
+    assert first.post('/api/libraries',json={'name':'Second docs'}).status_code==201
+    assert first.get('/api/customers').json()['total']==1
+    assert first.post(f'/api/companies/{original["id"]}/select').status_code==200
+    assert first.get('/api/company').json()['name']=='我的公司'
+    assert first.get('/api/customers').json()['total']==0
+    assert first.get('/api/libraries').json()==[]
+    forged=first.get('/api/company',headers={'X-Company-ID':str(second_company['id'])})
+    assert forged.json()['id']==original['id']
+    assert second.get('/api/companies').json()==[{'id':second.get('/api/company').json()['id'],'name':'我的公司','website':'','contact_name':'','contact_email':'','address':'','industry':'','products':'','target_region':'','agent_identity_md':'','updated_at':second.get('/api/company').json()['updated_at']}]
+
+
 @pytest.mark.parametrize("path", ["/api/company", "/api/customers", "/api/customers/1", "/api/customers/export"])
 def test_business_endpoints_require_login(tmp_path, path):
     client = TestClient(create_app(tmp_path / "accounts.sqlite3", "test-secret"))

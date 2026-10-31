@@ -56,9 +56,9 @@ def order_context(request:Request,tenant:TenantContext=Depends(require_tenant)):
 Context=Annotated[tuple,Depends(order_context)]
 
 
-def get_order(path,wid,oid):
+def get_order(path,wid,company_id,oid):
     with connection(path) as conn:
-        row=conn.execute('SELECT orders.*,customers.name AS customer_name FROM orders JOIN customers ON customers.id=orders.customer_id AND customers.workspace_id=orders.workspace_id WHERE orders.id=? AND orders.workspace_id=?',(oid,wid)).fetchone()
+        row=conn.execute('SELECT orders.*,customers.name AS customer_name FROM orders JOIN customers ON customers.id=orders.customer_id AND customers.workspace_id=orders.workspace_id WHERE orders.id=? AND orders.workspace_id=? AND orders.company_id=?',(oid,wid,company_id)).fetchone()
         if row is None:raise HTTPException(404,'Order not found')
         items=conn.execute('SELECT product_name,quantity,unit,unit_price,total_amount FROM order_items WHERE order_id=? AND workspace_id=? ORDER BY position',(oid,wid)).fetchall()
     return {**dict(row),'items':[dict(item) for item in items]}
@@ -80,7 +80,7 @@ def write_items(conn,wid,oid,items):
 def list_orders(context:Context):
     path,tenant=context
     with connection(path) as conn:
-        rows=conn.execute('SELECT orders.*,customers.name AS customer_name FROM orders JOIN customers ON customers.id=orders.customer_id AND customers.workspace_id=orders.workspace_id WHERE orders.workspace_id=? ORDER BY orders.id DESC LIMIT 500',(tenant.workspace_id,)).fetchall()
+        rows=conn.execute('SELECT orders.*,customers.name AS customer_name FROM orders JOIN customers ON customers.id=orders.customer_id AND customers.workspace_id=orders.workspace_id WHERE orders.workspace_id=? AND orders.company_id=? ORDER BY orders.id DESC LIMIT 500',(tenant.workspace_id,tenant.company_id)).fetchall()
     return [dict(row) for row in rows]
 
 
@@ -89,17 +89,17 @@ def create_order(payload:OrderInput,context:Context):
     path,tenant=context;wid=tenant.workspace_id
     with connection(path) as conn:
         conn.execute('BEGIN IMMEDIATE')
-        if conn.execute('SELECT 1 FROM customers WHERE id=? AND workspace_id=?',(payload.customer_id,wid)).fetchone() is None:raise HTTPException(404,'Customer not found')
-        cursor=conn.execute('INSERT INTO orders(workspace_id,customer_id,order_no,currency,delivery_date,payment_terms,notes) VALUES (?,?,?,?,?,?,?)',(wid,payload.customer_id,payload.order_no,payload.currency,payload.delivery_date,payload.payment_terms,payload.notes))
+        if conn.execute('SELECT 1 FROM customers WHERE id=? AND workspace_id=? AND company_id=?',(payload.customer_id,wid,tenant.company_id)).fetchone() is None:raise HTTPException(404,'Customer not found')
+        cursor=conn.execute('INSERT INTO orders(workspace_id,company_id,customer_id,order_no,currency,delivery_date,payment_terms,notes) VALUES (?,?,?,?,?,?,?,?)',(wid,tenant.company_id,payload.customer_id,payload.order_no,payload.currency,payload.delivery_date,payload.payment_terms,payload.notes))
         oid=cursor.lastrowid
         write_items(conn,wid,oid,payload.items)
-    return get_order(path,wid,oid)
+    return get_order(path,wid,tenant.company_id,oid)
 
 
 @router.get('/orders/{oid}')
 def read_order(oid:int,context:Context):
     path,tenant=context
-    return get_order(path,tenant.workspace_id,oid)
+    return get_order(path,tenant.workspace_id,tenant.company_id,oid)
 
 
 @router.put('/orders/{oid}')
@@ -108,7 +108,7 @@ def update_order(oid:int,payload:OrderUpdate,context:Context):
     values=payload.model_dump(exclude_unset=True,exclude_none=True,exclude={'items'})
     with connection(path) as conn:
         conn.execute('BEGIN IMMEDIATE')
-        old=conn.execute('SELECT status FROM orders WHERE id=? AND workspace_id=?',(oid,wid)).fetchone()
+        old=conn.execute('SELECT status FROM orders WHERE id=? AND workspace_id=? AND company_id=?',(oid,wid,tenant.company_id)).fetchone()
         if old is None:raise HTTPException(404,'Order not found')
         new=values.get('status',old['status'])
         if new!=old['status'] and new not in TRANSITIONS[old['status']]:raise HTTPException(409,'订单状态必须按报价、下单、出货、完成的顺序更新。')
@@ -116,24 +116,24 @@ def update_order(oid:int,payload:OrderUpdate,context:Context):
             assignments=','.join(f'{field}=?' for field in values)
             conn.execute(f"UPDATE orders SET {assignments},updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND workspace_id=?",(*values.values(),oid,wid))
         if payload.items is not None:write_items(conn,wid,oid,payload.items)
-    return get_order(path,wid,oid)
+    return get_order(path,wid,tenant.company_id,oid)
 
 
 @router.delete('/orders/{oid}')
 def delete_order(oid:int,context:Context):
     path,tenant=context
     with connection(path) as conn:
-        row=conn.execute('SELECT status FROM orders WHERE id=? AND workspace_id=?',(oid,tenant.workspace_id)).fetchone()
+        row=conn.execute('SELECT status FROM orders WHERE id=? AND workspace_id=? AND company_id=?',(oid,tenant.workspace_id,tenant.company_id)).fetchone()
         if row is None:raise HTTPException(404,'Order not found')
         if row['status'] not in {'报价中','已取消'}:raise HTTPException(409,'仅可删除报价中或已取消的订单。')
-        conn.execute('DELETE FROM orders WHERE id=? AND workspace_id=?',(oid,tenant.workspace_id))
+        conn.execute('DELETE FROM orders WHERE id=? AND workspace_id=? AND company_id=?',(oid,tenant.workspace_id,tenant.company_id))
     return {'ok':True}
 
 
 @router.get('/orders/{oid}/quotation',response_class=HTMLResponse)
 def quotation(oid:int,context:Context):
     path,tenant=context
-    order=get_order(path,tenant.workspace_id,oid)
+    order=get_order(path,tenant.workspace_id,tenant.company_id,oid)
     company=WorkspaceStore(path,tenant).get_company()
     esc=lambda value:html.escape(str(value if value is not None else '待谈'))
     rows=''.join('<tr>'+''.join(f'<td>{esc(item[field])}</td>' for field in ['product_name','quantity','unit','unit_price','total_amount'])+'</tr>' for item in order['items'])

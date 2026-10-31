@@ -31,9 +31,59 @@ def create_default_workspace(conn: sqlite3.Connection, user_id: int) -> None:
     )
 
 
+def _ensure_multiple_companies(path: Path) -> None:
+    conn = sqlite3.connect(path)
+    try:
+        conn.execute('CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+        done = conn.execute("SELECT 1 FROM schema_meta WHERE key='multiple_companies_v1'").fetchone()
+        companies = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='companies'").fetchone()
+        if done or not companies:
+            conn.commit()
+            return
+        conn.commit()
+        conn.execute('PRAGMA foreign_keys=OFF')
+        conn.execute('PRAGMA legacy_alter_table=ON')
+        conn.execute('BEGIN IMMEDIATE')
+        conn.execute("""
+            CREATE TABLE companies_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                website TEXT NOT NULL DEFAULT '',
+                contact_name TEXT NOT NULL DEFAULT '',
+                contact_email TEXT NOT NULL DEFAULT '',
+                address TEXT NOT NULL DEFAULT '',
+                industry TEXT NOT NULL DEFAULT '',
+                products TEXT NOT NULL DEFAULT '',
+                target_region TEXT NOT NULL DEFAULT '',
+                agent_identity_md TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+            )
+        """)
+        conn.execute("""
+            INSERT INTO companies_new
+            (id,workspace_id,name,website,contact_name,contact_email,address,industry,products,target_region,agent_identity_md,updated_at)
+            SELECT id,workspace_id,name,website,contact_name,contact_email,address,industry,products,target_region,agent_identity_md,updated_at
+            FROM companies
+        """)
+        conn.execute('DROP TABLE companies')
+        conn.execute('ALTER TABLE companies_new RENAME TO companies')
+        conn.execute('CREATE UNIQUE INDEX idx_company_workspace ON companies(id,workspace_id)')
+        conn.execute("INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('multiple_companies_v1','1')")
+        conn.commit()
+        conn.execute('PRAGMA foreign_keys=ON')
+        violations = conn.execute('PRAGMA foreign_key_check').fetchall()
+        if violations:
+            raise RuntimeError(f'companies migration foreign key violations: {violations[:3]}')
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 def migrate(path: Path) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    _ensure_multiple_companies(path)
     with connection(path) as conn:
         conn.execute("BEGIN IMMEDIATE")
         conn.execute("""
@@ -55,7 +105,7 @@ def migrate(path: Path) -> None:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS companies (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                workspace_id INTEGER NOT NULL UNIQUE REFERENCES workspaces(id) ON DELETE CASCADE,
+                workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
                 name TEXT NOT NULL,
                 website TEXT NOT NULL DEFAULT '',
                 contact_name TEXT NOT NULL DEFAULT '',
@@ -69,6 +119,7 @@ def migrate(path: Path) -> None:
             )
         """)
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_company_workspace ON companies(id, workspace_id)")
+        conn.execute("INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('multiple_companies_v1','1')")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS customers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -155,6 +206,26 @@ def migrate(path: Path) -> None:
             conn.execute(statement)
         for statement in PLATFORM_TABLES:
             conn.execute(statement)
+        for table, column, declaration in [
+            ('libraries', 'root_path', "TEXT NOT NULL DEFAULT ''"),
+            ('documents', 'source_path', "TEXT NOT NULL DEFAULT ''"),
+            ('research_reports', 'details', "TEXT NOT NULL DEFAULT '{}'"),
+            ('libraries', 'company_id', 'INTEGER'),
+            ('orders', 'company_id', 'INTEGER'),
+        ]:
+            columns = {row['name'] for row in conn.execute(f'PRAGMA table_info({table})').fetchall()}
+            if column not in columns:
+                conn.execute(f'ALTER TABLE {table} ADD COLUMN {column} {declaration}')
+        for row in conn.execute('SELECT id, workspace_id FROM companies ORDER BY id').fetchall():
+            conn.execute(
+                'UPDATE libraries SET company_id=? WHERE workspace_id=? AND company_id IS NULL',
+                (row['id'], row['workspace_id']),
+            )
+            conn.execute(
+                'UPDATE orders SET company_id=? WHERE workspace_id=? AND company_id IS NULL',
+                (row['id'], row['workspace_id']),
+            )
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_source ON documents(workspace_id,library_id,source_path) WHERE source_path <> ''")
         for row in conn.execute("""
             SELECT id FROM users
             WHERE NOT EXISTS (SELECT 1 FROM workspaces WHERE owner_user_id = users.id)

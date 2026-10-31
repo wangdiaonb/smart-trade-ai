@@ -12,6 +12,7 @@ from chat_store import ChatStore
 from database import connection
 from model_gateway import SKILLS, ModelError, stream_model
 from tenancy import TenantContext
+from tavily_service import tavily_lookup
 
 
 def local_timezone():
@@ -74,9 +75,14 @@ def _execute(app, wid, automation_id):
     system += instruction + '\n以下业务背景只属于当前公司空间：\n' + json.dumps(context, ensure_ascii=False)
 
     async def collect():
+        research = await tavily_lookup(app, wid, automation['prompt'])
+        if research['sources']:
+            system_with_research = system + '\n本轮联网搜索资料及来源：\n' + json.dumps(research, ensure_ascii=False)
+        else:
+            system_with_research = system + '\n本轮未取得联网搜索结果（' + research['error'] + '）；不得声称已经查询最新网页。'
         chunks = []
         async for chunk in stream_model(settings, key, [
-            {'role': 'system', 'content': system},
+            {'role': 'system', 'content': system_with_research},
             {'role': 'user', 'content': automation['prompt']},
         ], app.state.model_transport):
             chunks.append(chunk)

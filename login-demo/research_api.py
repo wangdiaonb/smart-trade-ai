@@ -1,6 +1,8 @@
 """Tenant-owned optional web research with explicit citations."""
 
 import json
+import sys
+from pathlib import Path
 from typing import Annotated
 
 import httpx
@@ -21,6 +23,11 @@ class ResearchSettings(BusinessInput):
 
 class SearchInput(BusinessInput):
     query: str = Field(min_length=2, max_length=2000, pattern=r'\S')
+    customer_id: int | None = Field(None, gt=0)
+
+
+class DeepTarget(BusinessInput):
+    target: str = Field(min_length=2, max_length=500, pattern=r'\S')
     customer_id: int | None = Field(None, gt=0)
 
 
@@ -49,10 +56,12 @@ def _report(path, wid, rid):
         raise HTTPException(404, 'Research report not found')
     result = dict(row)
     result['sources'] = json.loads(result['sources'])
+    result['details'] = json.loads(result.get('details') or '{}')
     return result
 
 
-def _save_report(path, wid, payload, status, answer='', sources=None, error=''):
+def _save_report(path, wid, payload, status, answer='', sources=None, error='', details=None):
+    query = getattr(payload, 'query', None) or getattr(payload, 'target', '')
     with connection(path) as conn:
         if payload.customer_id is not None and conn.execute(
             'SELECT 1 FROM customers WHERE id=? AND workspace_id=?',
@@ -60,10 +69,19 @@ def _save_report(path, wid, payload, status, answer='', sources=None, error=''):
         ).fetchone() is None:
             raise HTTPException(404, 'Customer not found')
         cursor = conn.execute('''
-            INSERT INTO research_reports(workspace_id,customer_id,query,status,answer,sources,error)
-            VALUES (?,?,?,?,?,?,?)
-        ''', (wid, payload.customer_id, payload.query, status, answer, json.dumps(sources or [], ensure_ascii=False), error))
+            INSERT INTO research_reports(workspace_id,customer_id,query,status,answer,sources,details,error)
+            VALUES (?,?,?,?,?,?,?,?)
+        ''', (wid, payload.customer_id, query, status, answer, json.dumps(sources or [], ensure_ascii=False), json.dumps(details or {}, ensure_ascii=False), error))
     return _report(path, wid, cursor.lastrowid)
+
+
+async def default_osint_runner(target: str) -> dict:
+    """Run the original public-information orchestration without license gating."""
+    repo_root = Path(__file__).resolve().parent.parent
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+    from trade.osint.orchestrator import osint_full_check
+    return await osint_full_check(target)
 
 
 @router.get('/research/settings')
@@ -154,6 +172,26 @@ async def search(payload: SearchInput, request: Request, context: Context):
     return _save_report(path, tenant.workspace_id, payload, 'success', answer=answer, sources=sources)
 
 
+@router.post('/research/deep', status_code=201)
+async def deep_research(payload: DeepTarget, request: Request, context: Context):
+    path, tenant = context
+    try:
+        details = await request.app.state.osint_runner(payload.target.strip())
+    except Exception:
+        report = _save_report(
+            path, tenant.workspace_id, payload, 'error',
+            error='深度背调未能完成，请检查网络和本地依赖后重试。',
+        )
+        return report
+    rating = str(details.get('overall_rating') or 'unknown')
+    score = details.get('overall_score')
+    answer = f"综合评级：{rating}；风险评分：{score if score is not None else '未知'}。"
+    return _save_report(
+        path, tenant.workspace_id, payload, 'success',
+        answer=answer, details=details,
+    )
+
+
 @router.get('/research/reports')
 def reports(context: Context):
     path, tenant = context
@@ -161,7 +199,8 @@ def reports(context: Context):
         rows = conn.execute('''
             SELECT reports.id,reports.query,reports.status,reports.answer,reports.error,
                    reports.created_at,reports.customer_id,customers.name AS customer_name,
-                   (SELECT count(*) FROM json_each(reports.sources)) AS source_count
+                   (SELECT count(*) FROM json_each(reports.sources)) AS source_count,
+                   CASE WHEN json_extract(reports.details, '$') <> '{}' THEN 'deep' ELSE 'search' END AS report_type
             FROM research_reports reports
             LEFT JOIN customers ON customers.id=reports.customer_id AND customers.workspace_id=reports.workspace_id
             WHERE reports.workspace_id=? ORDER BY reports.id DESC LIMIT 100
