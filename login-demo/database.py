@@ -162,6 +162,7 @@ def migrate(path: Path) -> None:
             CREATE TABLE IF NOT EXISTS conversations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+                company_id INTEGER NOT NULL,
                 customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
                 title TEXT NOT NULL DEFAULT '新对话',
                 busy_token TEXT NOT NULL DEFAULT '',
@@ -212,6 +213,9 @@ def migrate(path: Path) -> None:
             ('research_reports', 'details', "TEXT NOT NULL DEFAULT '{}'"),
             ('libraries', 'company_id', 'INTEGER'),
             ('orders', 'company_id', 'INTEGER'),
+            ('conversations', 'company_id', 'INTEGER'),
+            ('research_reports', 'company_id', 'INTEGER'),
+            ('automations', 'company_id', 'INTEGER'),
         ]:
             columns = {row['name'] for row in conn.execute(f'PRAGMA table_info({table})').fetchall()}
             if column not in columns:
@@ -223,6 +227,18 @@ def migrate(path: Path) -> None:
             )
             conn.execute(
                 'UPDATE orders SET company_id=? WHERE workspace_id=? AND company_id IS NULL',
+                (row['id'], row['workspace_id']),
+            )
+            conn.execute(
+                'UPDATE conversations SET company_id=? WHERE workspace_id=? AND company_id IS NULL',
+                (row['id'], row['workspace_id']),
+            )
+            conn.execute(
+                'UPDATE research_reports SET company_id=? WHERE workspace_id=? AND company_id IS NULL',
+                (row['id'], row['workspace_id']),
+            )
+            conn.execute(
+                'UPDATE automations SET company_id=? WHERE workspace_id=? AND company_id IS NULL',
                 (row['id'], row['workspace_id']),
             )
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_source ON documents(workspace_id,library_id,source_path) WHERE source_path <> ''")

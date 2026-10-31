@@ -6,6 +6,7 @@ TABLES = [
     """CREATE TABLE IF NOT EXISTS research_reports (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+        company_id INTEGER NOT NULL,
         customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
         query TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'success' CHECK(status IN ('success','error')),
@@ -19,6 +20,7 @@ TABLES = [
     """CREATE TABLE IF NOT EXISTS automations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+        company_id INTEGER NOT NULL,
         name TEXT NOT NULL,
         prompt TEXT NOT NULL,
         skill_id TEXT NOT NULL,

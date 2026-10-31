@@ -93,6 +93,32 @@ def test_chat_web_search_injects_sources_and_emits_source_event(app_and_clients)
     assert '公开信息摘要' in sent and 'Acme official site' in sent
 
 
+def test_hermes_tool_mode_uses_business_context_and_persists_reply(tmp_path):
+    prompts=[]
+    async def fake_hermes(prompt,working_directory):
+        prompts.append((prompt,working_directory))
+        return 'Hermes 工具执行完成'
+    app=create_app(
+        tmp_path/'hermes.sqlite3','test-secret',
+        skill_dir=Path(__file__).resolve().parents[2]/'skills',
+        hermes_runner=fake_hermes,
+    )
+    client=TestClient(app)
+    client.post('/api/register',json={'email':'hermes@example.com','password':'correct-horse-1'})
+    client.put('/api/company',json={'name':'Hermes Company','products':'Industrial pumps'})
+    customer=client.post('/api/customers',json={'name':'Hermes Buyer'}).json()
+    cid=client.post('/api/conversations',json={'title':'Hermes tool','customer_id':customer['id']}).json()['id']
+    response=client.post(f'/api/conversations/{cid}/hermes',json={
+        'content':'查一下客户官网并总结','skill_id':'b2b-platform','web_search':False,
+    })
+    assert response.status_code==200
+    assert response.json()['content']=='Hermes 工具执行完成'
+    assert 'Hermes Company' in prompts[0][0]
+    assert 'Hermes Buyer' in prompts[0][0]
+    assert str(prompts[0][1]).endswith('0') is False
+    assert client.get(f'/api/conversations/{cid}').json()['messages'][-1]['content']=='Hermes 工具执行完成'
+
+
 def test_research_provider_error_is_saved_as_failure_without_fake_answer(tmp_path):
     def search_fail(request):
         return httpx.Response(401,json={'detail':'bad key'})

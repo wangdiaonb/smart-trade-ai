@@ -44,14 +44,14 @@ def _settings(path, wid):
     return row['api_key_encrypted'] if row else ''
 
 
-def _report(path, wid, rid):
+def _report(path, wid, rid, company_id=None):
     with connection(path) as conn:
         row = conn.execute('''
             SELECT reports.*, customers.name AS customer_name
             FROM research_reports reports
             LEFT JOIN customers ON customers.id=reports.customer_id AND customers.workspace_id=reports.workspace_id
-            WHERE reports.id=? AND reports.workspace_id=?
-        ''', (rid, wid)).fetchone()
+            WHERE reports.id=? AND reports.workspace_id=? AND (? IS NULL OR reports.company_id=?)
+        ''', (rid, wid, company_id, company_id)).fetchone()
     if row is None:
         raise HTTPException(404, 'Research report not found')
     result = dict(row)
@@ -60,7 +60,7 @@ def _report(path, wid, rid):
     return result
 
 
-def _save_report(path, wid, payload, status, answer='', sources=None, error='', details=None):
+def _save_report(path, wid, company_id, payload, status, answer='', sources=None, error='', details=None):
     query = getattr(payload, 'query', None) or getattr(payload, 'target', '')
     with connection(path) as conn:
         if payload.customer_id is not None and conn.execute(
@@ -69,10 +69,10 @@ def _save_report(path, wid, payload, status, answer='', sources=None, error='', 
         ).fetchone() is None:
             raise HTTPException(404, 'Customer not found')
         cursor = conn.execute('''
-            INSERT INTO research_reports(workspace_id,customer_id,query,status,answer,sources,details,error)
-            VALUES (?,?,?,?,?,?,?,?)
-        ''', (wid, payload.customer_id, query, status, answer, json.dumps(sources or [], ensure_ascii=False), json.dumps(details or {}, ensure_ascii=False), error))
-    return _report(path, wid, cursor.lastrowid)
+            INSERT INTO research_reports(workspace_id,company_id,customer_id,query,status,answer,sources,details,error)
+            VALUES (?,?,?,?,?,?,?,?,?)
+        ''', (wid, company_id, payload.customer_id, query, status, answer, json.dumps(sources or [], ensure_ascii=False), json.dumps(details or {}, ensure_ascii=False), error))
+    return _report(path, wid, cursor.lastrowid, company_id)
 
 
 async def default_osint_runner(target: str) -> dict:
@@ -139,16 +139,16 @@ async def search(payload: SearchInput, request: Request, context: Context):
                 headers={'Authorization': f'Bearer {key}', 'Accept': 'application/json'},
             )
     except httpx.HTTPError:
-        report = _save_report(path, tenant.workspace_id, payload, 'error', error='无法连接搜索服务。')
+        report = _save_report(path, tenant.workspace_id, tenant.company_id, payload, 'error', error='无法连接搜索服务。')
         raise HTTPException(502, '无法连接客户情报搜索服务，请检查网络后重试。') from None
     if response.status_code in (401, 403):
-        _save_report(path, tenant.workspace_id, payload, 'error', error='搜索 API Key 无效。')
+        _save_report(path, tenant.workspace_id, tenant.company_id, payload, 'error', error='搜索 API Key 无效。')
         raise HTTPException(502, 'Tavily API Key 无效，请重新配置。')
     if response.status_code == 429:
-        _save_report(path, tenant.workspace_id, payload, 'error', error='搜索额度或频率受限。')
+        _save_report(path, tenant.workspace_id, tenant.company_id, payload, 'error', error='搜索额度或频率受限。')
         raise HTTPException(502, '搜索服务额度或频率受限，请稍后重试。')
     if response.status_code != 200:
-        _save_report(path, tenant.workspace_id, payload, 'error', error='搜索服务返回错误。')
+        _save_report(path, tenant.workspace_id, tenant.company_id, payload, 'error', error='搜索服务返回错误。')
         raise HTTPException(502, '客户情报搜索暂时不可用。')
     try:
         data = response.json()
@@ -167,9 +167,9 @@ async def search(payload: SearchInput, request: Request, context: Context):
         if not sources:
             raise ValueError('No cited results')
     except (ValueError, TypeError):
-        _save_report(path, tenant.workspace_id, payload, 'error', error='搜索结果格式无效。')
+        _save_report(path, tenant.workspace_id, tenant.company_id, payload, 'error', error='搜索结果格式无效。')
         raise HTTPException(502, '搜索服务没有返回可用的来源。')
-    return _save_report(path, tenant.workspace_id, payload, 'success', answer=answer, sources=sources)
+    return _save_report(path, tenant.workspace_id, tenant.company_id, payload, 'success', answer=answer, sources=sources)
 
 
 @router.post('/research/deep', status_code=201)
@@ -179,7 +179,7 @@ async def deep_research(payload: DeepTarget, request: Request, context: Context)
         details = await request.app.state.osint_runner(payload.target.strip())
     except Exception:
         report = _save_report(
-            path, tenant.workspace_id, payload, 'error',
+            path, tenant.workspace_id, tenant.company_id, payload, 'error',
             error='深度背调未能完成，请检查网络和本地依赖后重试。',
         )
         return report
@@ -187,7 +187,7 @@ async def deep_research(payload: DeepTarget, request: Request, context: Context)
     score = details.get('overall_score')
     answer = f"综合评级：{rating}；风险评分：{score if score is not None else '未知'}。"
     return _save_report(
-        path, tenant.workspace_id, payload, 'success',
+        path, tenant.workspace_id, tenant.company_id, payload, 'success',
         answer=answer, details=details,
     )
 
@@ -203,21 +203,21 @@ def reports(context: Context):
                    CASE WHEN json_extract(reports.details, '$') <> '{}' THEN 'deep' ELSE 'search' END AS report_type
             FROM research_reports reports
             LEFT JOIN customers ON customers.id=reports.customer_id AND customers.workspace_id=reports.workspace_id
-            WHERE reports.workspace_id=? ORDER BY reports.id DESC LIMIT 100
-        ''', (tenant.workspace_id,)).fetchall()
+            WHERE reports.workspace_id=? AND reports.company_id=? ORDER BY reports.id DESC LIMIT 100
+        ''', (tenant.workspace_id,tenant.company_id)).fetchall()
     return [dict(row) for row in rows]
 
 
 @router.get('/research/reports/{rid}')
 def report(rid: int, context: Context):
     path, tenant = context
-    return _report(path, tenant.workspace_id, rid)
+    return _report(path, tenant.workspace_id, rid, tenant.company_id)
 
 
 @router.delete('/research/reports/{rid}')
 def delete_report(rid: int, context: Context):
     path, tenant = context
-    _report(path, tenant.workspace_id, rid)
+    _report(path, tenant.workspace_id, rid, tenant.company_id)
     with connection(path) as conn:
         conn.execute('DELETE FROM research_reports WHERE id=? AND workspace_id=?', (rid, tenant.workspace_id))
     return {'ok': True}

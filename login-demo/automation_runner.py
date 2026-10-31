@@ -41,12 +41,12 @@ def next_run_for(frequency: str, time_of_day: str, weekday: int, after: datetime
     return candidate.astimezone(timezone.utc).isoformat(timespec='seconds')
 
 
-def _workspace_context(path, wid):
+def _workspace_context(path, wid, company_id):
     with connection(path) as conn:
-        company = conn.execute('SELECT name,industry,products,target_region FROM companies WHERE workspace_id=?', (wid,)).fetchone()
-        customers = conn.execute('SELECT name,contact,country,tier,buyer_type,main_category FROM customers WHERE workspace_id=? ORDER BY updated_at DESC LIMIT 30', (wid,)).fetchall()
+        company = conn.execute('SELECT name,industry,products,target_region FROM companies WHERE workspace_id=? AND id=?', (wid,company_id)).fetchone()
+        customers = conn.execute('SELECT name,contact,country,tier,buyer_type,main_category FROM customers WHERE workspace_id=? AND company_id=? ORDER BY updated_at DESC LIMIT 30', (wid,company_id)).fetchall()
         memory = conn.execute('SELECT content FROM workspace_memory WHERE workspace_id=?', (wid,)).fetchone()
-        orders = conn.execute("SELECT status,count(*) AS count FROM orders WHERE workspace_id=? GROUP BY status", (wid,)).fetchall()
+        orders = conn.execute("SELECT status,count(*) AS count FROM orders WHERE workspace_id=? AND company_id=? GROUP BY status", (wid,company_id)).fetchall()
     return {
         'company': dict(company) if company else {},
         'customers': [dict(row) for row in customers],
@@ -55,10 +55,10 @@ def _workspace_context(path, wid):
     }
 
 
-def _execute(app, wid, automation_id):
+def _execute(app, wid, company_id, automation_id):
     path = app.state.db_path
     with connection(path) as conn:
-        automation = conn.execute('SELECT * FROM automations WHERE id=? AND workspace_id=?', (automation_id, wid)).fetchone()
+        automation = conn.execute('SELECT * FROM automations WHERE id=? AND workspace_id=? AND company_id=?', (automation_id, wid, company_id)).fetchone()
         settings = conn.execute('SELECT * FROM model_settings WHERE workspace_id=?', (wid,)).fetchone()
     if automation is None:
         return {'status': 'error', 'output': '', 'error': '任务不存在。'}
@@ -70,7 +70,7 @@ def _execute(app, wid, automation_id):
         instruction = SKILLS[automation['skill_id']][1] if automation['skill_id'] in SKILLS else app.state.skill_catalog.instruction(automation['skill_id'])
     except (ValueError, KeyError) as exc:
         return {'status': 'error', 'output': '', 'error': str(exc)}
-    context = _workspace_context(path, wid)
+    context = _workspace_context(path, wid, company_id)
     system = '你在执行公司空间内已安排的文本任务。不得声称执行了未执行的工具、发送或联网检查。\n'
     system += instruction + '\n以下业务背景只属于当前公司空间：\n' + json.dumps(context, ensure_ascii=False)
 
@@ -96,7 +96,7 @@ def _execute(app, wid, automation_id):
         return {'status': 'error', 'output': '', 'error': '自动任务暂时无法完成。'}
 
 
-def _record_result(path, wid, automation_id, started, result):
+def _record_result(path, wid, company_id, automation_id, started, result):
     finished = datetime.now(timezone.utc).isoformat(timespec='seconds')
     with connection(path) as conn:
         conn.execute('BEGIN IMMEDIATE')
@@ -104,7 +104,7 @@ def _record_result(path, wid, automation_id, started, result):
             INSERT INTO automation_runs(workspace_id,automation_id,status,output,error,started_at,finished_at)
             VALUES (?,?,?,?,?,?,?)
         ''', (wid, automation_id, result['status'], result['output'], result['error'], started, finished))
-        conn.execute('UPDATE automations SET last_run_at=?,lease_token=\'\',lease_until=0,updated_at=? WHERE id=? AND workspace_id=?', (finished, finished, automation_id, wid))
+        conn.execute('UPDATE automations SET last_run_at=?,lease_token=\'\',lease_until=0,updated_at=? WHERE id=? AND workspace_id=? AND company_id=?', (finished, finished, automation_id, wid, company_id))
         row = conn.execute('SELECT * FROM automation_runs WHERE id=? AND workspace_id=?', (cursor.lastrowid, wid)).fetchone()
     return dict(row)
 
@@ -126,21 +126,25 @@ def run_due_automations(app, now: datetime | None = None) -> dict:
             claimed.append(dict(row))
     for task in claimed:
         started = now.isoformat(timespec='seconds')
-        _record_result(path, task['workspace_id'], task['id'], started, _execute(app, task['workspace_id'], task['id']))
+        _record_result(path, task['workspace_id'], task['company_id'], task['id'], started, _execute(app, task['workspace_id'], task['company_id'], task['id']))
     return {'started': len(claimed)}
 
 
-def run_automation_now(app, wid, automation_id):
+def run_automation_now(app, wid, automation_id, company_id=None):
     path = app.state.db_path
     token = uuid.uuid4().hex
     with connection(path) as conn:
         conn.execute('BEGIN IMMEDIATE')
-        row = conn.execute('SELECT * FROM automations WHERE id=? AND workspace_id=?', (automation_id, wid)).fetchone()
+        if company_id is None:
+            row = conn.execute('SELECT * FROM automations WHERE id=? AND workspace_id=?', (automation_id, wid)).fetchone()
+        else:
+            row = conn.execute('SELECT * FROM automations WHERE id=? AND workspace_id=? AND company_id=?', (automation_id, wid, company_id)).fetchone()
         if row is None:
             return None
         if row['lease_until'] > time.time():
             return {'busy': True}
-        conn.execute('UPDATE automations SET lease_token=?,lease_until=? WHERE id=? AND workspace_id=?', (token, time.time() + 300, automation_id, wid))
+        active_company = row['company_id']
+        conn.execute('UPDATE automations SET lease_token=?,lease_until=? WHERE id=? AND workspace_id=? AND company_id=?', (token, time.time() + 300, automation_id, wid, active_company))
     started = datetime.now(timezone.utc).isoformat(timespec='seconds')
-    return _record_result(path, wid, automation_id, started, _execute(app, wid, automation_id))
+    return _record_result(path, wid, active_company, automation_id, started, _execute(app, wid, active_company, automation_id))
 

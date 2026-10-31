@@ -52,9 +52,9 @@ def _public(row):
     return result
 
 
-def _task(path, wid, task_id):
+def _task(path, wid, company_id, task_id):
     with connection(path) as conn:
-        row = conn.execute('SELECT * FROM automations WHERE id=? AND workspace_id=?', (task_id, wid)).fetchone()
+        row = conn.execute('SELECT * FROM automations WHERE id=? AND workspace_id=? AND company_id=?', (task_id, wid, company_id)).fetchone()
     if row is None:
         raise HTTPException(404, 'Automation not found')
     return _public(row)
@@ -69,7 +69,7 @@ def _validate_skill(request, skill_id):
 def list_automations(context: Context):
     request, tenant = context
     with connection(request.app.state.db_path) as conn:
-        rows = conn.execute('SELECT * FROM automations WHERE workspace_id=? ORDER BY id DESC', (tenant.workspace_id,)).fetchall()
+        rows = conn.execute('SELECT * FROM automations WHERE workspace_id=? AND company_id=? ORDER BY id DESC', (tenant.workspace_id, tenant.company_id)).fetchall()
     return [_public(row) for row in rows]
 
 
@@ -80,22 +80,22 @@ def create_automation(payload: AutomationInput, context: Context):
     next_run = next_run_for(payload.frequency, payload.time_of_day, payload.weekday)
     with connection(request.app.state.db_path) as conn:
         cursor = conn.execute('''
-            INSERT INTO automations(workspace_id,name,prompt,skill_id,frequency,time_of_day,weekday,enabled,next_run_at)
-            VALUES (?,?,?,?,?,?,?,?,?)
-        ''', (tenant.workspace_id, payload.name, payload.prompt, payload.skill_id, payload.frequency, payload.time_of_day, payload.weekday, int(payload.enabled), next_run))
-    return _task(request.app.state.db_path, tenant.workspace_id, cursor.lastrowid)
+            INSERT INTO automations(workspace_id,company_id,name,prompt,skill_id,frequency,time_of_day,weekday,enabled,next_run_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?)
+        ''', (tenant.workspace_id, tenant.company_id, payload.name, payload.prompt, payload.skill_id, payload.frequency, payload.time_of_day, payload.weekday, int(payload.enabled), next_run))
+    return _task(request.app.state.db_path, tenant.workspace_id, tenant.company_id, cursor.lastrowid)
 
 
 @router.get('/automations/{task_id}')
 def get_automation(task_id: int, context: Context):
     request, tenant = context
-    return _task(request.app.state.db_path, tenant.workspace_id, task_id)
+    return _task(request.app.state.db_path, tenant.workspace_id, tenant.company_id, task_id)
 
 
 @router.put('/automations/{task_id}')
 def update_automation(task_id: int, payload: AutomationUpdate, context: Context):
     request, tenant = context
-    current = _task(request.app.state.db_path, tenant.workspace_id, task_id)
+    current = _task(request.app.state.db_path, tenant.workspace_id, tenant.company_id, task_id)
     values = payload.model_dump(exclude_unset=True, exclude_none=True)
     if 'skill_id' in values:
         _validate_skill(request, values['skill_id'])
@@ -105,26 +105,26 @@ def update_automation(task_id: int, payload: AutomationUpdate, context: Context)
     assignments = ','.join(f'{field}=?' for field in values)
     with connection(request.app.state.db_path) as conn:
         conn.execute(
-            f"UPDATE automations SET {assignments},updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND workspace_id=?",
-            (*values.values(), task_id, tenant.workspace_id),
+            f"UPDATE automations SET {assignments},updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND workspace_id=? AND company_id=?",
+            (*values.values(), task_id, tenant.workspace_id, tenant.company_id),
         )
-    return _task(request.app.state.db_path, tenant.workspace_id, task_id)
+    return _task(request.app.state.db_path, tenant.workspace_id, tenant.company_id, task_id)
 
 
 @router.delete('/automations/{task_id}')
 def delete_automation(task_id: int, context: Context):
     request, tenant = context
-    _task(request.app.state.db_path, tenant.workspace_id, task_id)
+    _task(request.app.state.db_path, tenant.workspace_id, tenant.company_id, task_id)
     with connection(request.app.state.db_path) as conn:
-        conn.execute('DELETE FROM automations WHERE id=? AND workspace_id=?', (task_id, tenant.workspace_id))
+        conn.execute('DELETE FROM automations WHERE id=? AND workspace_id=? AND company_id=?', (task_id, tenant.workspace_id, tenant.company_id))
     return {'ok': True}
 
 
 @router.post('/automations/{task_id}/run')
 def run_automation(task_id: int, context: Context):
     request, tenant = context
-    _task(request.app.state.db_path, tenant.workspace_id, task_id)
-    result = run_automation_now(request.app, tenant.workspace_id, task_id)
+    _task(request.app.state.db_path, tenant.workspace_id, tenant.company_id, task_id)
+    result = run_automation_now(request.app, tenant.workspace_id, task_id, company_id=tenant.company_id)
     if result is None:
         raise HTTPException(404, 'Automation not found')
     if result.get('busy'):
@@ -142,8 +142,8 @@ def list_runs(context: Context):
         rows = conn.execute('''
             SELECT runs.*,automations.name AS automation_name
             FROM automation_runs runs JOIN automations ON automations.id=runs.automation_id AND automations.workspace_id=runs.workspace_id
-            WHERE runs.workspace_id=? ORDER BY runs.id DESC LIMIT 100
-        ''', (tenant.workspace_id,)).fetchall()
+            WHERE runs.workspace_id=? AND automations.company_id=? ORDER BY runs.id DESC LIMIT 100
+        ''', (tenant.workspace_id,tenant.company_id)).fetchall()
     return [dict(row) for row in rows]
 
 

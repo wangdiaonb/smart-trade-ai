@@ -14,6 +14,7 @@ from model_gateway import ModelError, SKILLS, context_messages, stream_model
 from tenancy import TenantContext, require_tenant
 from documents_api import document
 from tavily_service import tavily_lookup
+from hermes_bridge import HermesError, run_hermes
 
 router = APIRouter(prefix='/api', tags=['workspace chat'])
 
@@ -179,4 +180,40 @@ async def stream_conversation(cid: int, payload: ChatInput, request: Request, st
             store.finish_turn(cid, token, message_id, ''.join(chunks), status)
 
     return StreamingResponse(generate(), media_type='text/event-stream', headers={'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no'})
+
+
+@router.post('/conversations/{cid}/hermes')
+async def hermes_conversation(cid: int, payload: ChatInput, request: Request, store: Store):
+    conversation = store.conversation(cid)
+    if payload.skill_id not in SKILLS and not request.app.state.skill_catalog.has(payload.skill_id):
+        raise HTTPException(422, '未知或不可用的业务技能。')
+    documents = []
+    for did in dict.fromkeys(payload.document_ids):
+        doc = document(store.path, store.workspace_id, did, store.company_id)
+        if doc['extracted_text'].strip():
+            documents.append({'filename': doc['filename'], 'text': doc['extracted_text'][:12000]})
+    instruction = None if payload.skill_id in SKILLS else request.app.state.skill_catalog.instruction(payload.skill_id)
+    messages = context_messages(store, conversation, payload.content, payload.skill_id, instruction)
+    system = messages[0]['content'] + '\n你可以使用 Hermes 已启用的工具。只执行用户当前问题所需的操作；没有实际执行工具时不得声称已执行。'
+    if documents:
+        system += '\n当前可参考的文档内容：\n' + json.dumps(documents, ensure_ascii=False)
+    if payload.web_search:
+        research = await tavily_lookup(request.app, store.workspace_id, payload.content)
+        system += '\n联网搜索资料：\n' + json.dumps(research, ensure_ascii=False)
+    history = '\n'.join(f"{message['role']}: {message['content']}" for message in messages[1:])
+    prompt = system + '\n\n对话历史：\n' + history + '\n\n当前用户请求：\n' + payload.content
+    token, message_id = store.claim_turn(cid, payload.content, payload.skill_id)
+    try:
+        output = await request.app.state.hermes_runner(
+            prompt,
+            store.path.parent / 'hermes-workspaces' / str(store.workspace_id) / str(store.company_id or 0),
+        )
+        store.finish_turn(cid, token, message_id, output, 'complete')
+        return {'message_id': message_id, 'content': output}
+    except HermesError as exc:
+        store.finish_turn(cid, token, message_id, '', 'error')
+        raise HTTPException(502, str(exc)) from exc
+    except Exception as exc:
+        store.finish_turn(cid, token, message_id, '', 'error')
+        raise HTTPException(502, 'Hermes 工具暂时无法完成请求。') from exc
 

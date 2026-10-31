@@ -21,7 +21,7 @@ const VIEW_TITLES = {customers:'客户管理',documents:'文档库',osint:'客�
 const state = {
   company:null,email:'',customers:[],libraries:[],skills:[],settings:null,
   view:'chat',context:'daily',conversationId:null,messages:[],chatController:null,
-  chatCustomerId:null,chatDocumentId:null,libraryId:null,webSearch:true,
+  chatCustomerId:null,chatDocumentId:null,libraryId:null,webSearch:true,hermesTools:true,
 };
 
 function esc(value) {
@@ -94,6 +94,7 @@ function renderChat(ctx=state.context,title=CONTEXTS[ctx]?.title||'AI 对话') {
           <select id="chat-customer" aria-label="关联客户"><option value="">不关联客户</option>${state.customers.map(c=>`<option value="${c.id}" ${String(state.chatCustomerId)===String(c.id)?'selected':''}>${esc(c.name)}</option>`).join('')}</select>
           <select id="chat-document" aria-label="参考文档"><option value="">不参考文档</option>${state.libraries.flatMap(lib=>lib._documents||[]).map(doc=>`<option value="${doc.id}" ${String(state.chatDocumentId)===String(doc.id)?'selected':''}>${esc(doc.filename)}</option>`).join('')}</select>
           <label class="chat-web-search"><input id="chat-web-search" type="checkbox" ${state.webSearch?'checked':''}>联网搜索</label>
+          <label class="chat-web-search"><input id="chat-hermes-tools" type="checkbox" ${state.hermesTools?'checked':''}>Hermes 工具</label>
         </div>
         <div class="chat-topbar-actions"><button id="new-conversation" type="button">＋ 新对话</button></div>
       </div>
@@ -113,6 +114,7 @@ function bindChat() {
   document.getElementById('chat-customer').addEventListener('change',event=>{state.chatCustomerId=event.target.value?Number(event.target.value):null;});
   document.getElementById('chat-document').addEventListener('change',event=>{state.chatDocumentId=event.target.value?Number(event.target.value):null;});
   document.getElementById('chat-web-search').addEventListener('change',event=>{state.webSearch=event.target.checked;});
+  document.getElementById('chat-hermes-tools').addEventListener('change',event=>{state.hermesTools=event.target.checked;});
   document.getElementById('new-conversation').addEventListener('click',()=>{state.conversationId=null;state.messages=[];state.chatCustomerId=null;state.chatDocumentId=null;renderChat();});
   app.querySelectorAll('[data-prompt]').forEach(button=>button.addEventListener('click',()=>{
     const input=document.getElementById('chat-input');input.value=button.dataset.prompt;input.focus();
@@ -143,9 +145,13 @@ async function sendChat(event) {
       const thread=await api('/api/conversations',{method:'POST',body,signal:state.chatController.signal});
       state.conversationId=thread.id;
     }
+    const requestBody={content,skill_id:context.skill,document_ids:state.chatDocumentId?[state.chatDocumentId]:[],web_search:state.webSearch};
+    if(state.hermesTools){
+      const result=await api(`/api/conversations/${state.conversationId}/hermes`,{method:'POST',body:requestBody,signal:state.chatController.signal});
+      assistant.content=result.content;renderChat();toast('Hermes 工具任务已完成','success');return;
+    }
     const response=await api(`/api/conversations/${state.conversationId}/stream`,{
-      method:'POST',body:{content,skill_id:context.skill,document_ids:state.chatDocumentId?[state.chatDocumentId]:[],web_search:state.webSearch},
-      raw:true,signal:state.chatController.signal,
+      method:'POST',body:requestBody,raw:true,signal:state.chatController.signal,
     });
     await readSSE(response,(type,data)=>{
       if(type==='sources'){

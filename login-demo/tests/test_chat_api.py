@@ -164,7 +164,8 @@ def test_busy_conversation_rejects_parallel_turn_and_stale_cancel_cannot_unlock_
     configure(first)
     user = first.get('/api/me').json()
     workspace = first.get('/api/workspace').json()
-    store = ChatStore(path, TenantContext(user['id'], workspace['id'], user['email']))
+    company = first.get('/api/company').json()
+    store = ChatStore(path, TenantContext(user['id'], workspace['id'], user['email'], company['id']))
     cid = conversation(first)
     old_token, old_message = store.claim_turn(cid, 'first', 'general')
     assert first.post(f'/api/conversations/{cid}/stream', json={"content":"parallel"}).status_code == 409
