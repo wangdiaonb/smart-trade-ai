@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#cfe8d6">
-  <meta name="description" content="Trade AI 本地外贸业务工作台">
+  <meta name="theme-color" content="#fafaf7">
+  <meta name="description" content="Trade AI 本地外贸业务分析工作台">
   <link rel="icon" type="image/png" href="/original-static/trade-icon.png">
-  <title>Trade AI · 外贸业务控制台</title>
+  <title>Trade AI · 外贸业务分析台</title>
   <link rel="stylesheet" href="/original-static/trade_chat.css">
   <link rel="stylesheet" href="/static/workspace.css">
   <script src="/original-static/vendor/marked.umd.js"></script>
@@ -15,119 +15,110 @@
 </head>
 <body>
   <a class="skip-link" href="#app">跳到主要内容</a>
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-      <div class="logo-row">
-        <div class="logo" aria-label="Trade AI">
-          <span class="logo-mark" aria-hidden="true">TA</span>
-          <span class="logo-copy"><strong>TRADE AI</strong><small>B2B OPS · LOCAL</small></span>
-        </div>
+  <div class="app-frame">
+    <header class="app-header">
+      <div class="brand-lockup">
+        <span class="brand-mark" aria-hidden="true"><i></i></span>
+        <span class="brand-name">Trade AI</span>
+        <span class="brand-section">B2B BUSINESS INTELLIGENCE</span>
+      </div>
+
+      <div class="header-segment">
+        <span class="header-filter-label">SEGMENT</span>
+        <select id="company-select" aria-label="当前公司"></select>
+        <button id="company-add" class="header-icon-button" type="button" title="添加公司" aria-label="添加公司">＋</button>
+        <button id="company-settings" class="header-icon-button" type="button" title="公司设置" aria-label="公司设置">⌘</button>
+      </div>
+
+      <div class="header-account">
+        <span class="account-email" id="account-email">已登录</span>
+        <button id="model-settings-button" class="header-icon-button" type="button" title="模型设置" aria-label="模型设置">⚙</button>
+        <button id="skills-help-button" class="header-icon-button" type="button" title="技能帮助" aria-label="技能帮助">◎</button>
+        <button id="onboarding-button" class="header-icon-button" type="button" title="新手引导" aria-label="新手引导">?</button>
+        <button id="logout-button" class="header-icon-button" type="button" title="退出登录" aria-label="退出登录">↗</button>
+        <button id="mobile-open" class="mobile-open" type="button" aria-label="打开工作流导航" aria-expanded="false">菜单</button>
+      </div>
+    </header>
+
+    <nav class="workspace-nav" id="workspace-nav" aria-label="贸易工作流">
+      <div class="mobile-nav-head">
+        <span>WORKFLOW INDEX</span>
         <button id="mobile-close" class="mobile-close" type="button" aria-label="关闭导航">×</button>
       </div>
-      <div class="company-select">
-        <span class="company-label">CURRENT COMPANY</span>
-        <div class="csel-row">
-          <select id="company-select" aria-label="当前公司"></select>
-          <button id="company-add" type="button" title="添加公司" aria-label="添加公司">+</button>
-          <button id="company-settings" type="button" title="公司设置" aria-label="公司设置">⚙</button>
-        </div>
+      <div class="nav-cluster">
+        <span class="nav-cluster-label">TODAY</span>
+        <button class="nav-item active" data-context="daily" data-title="今日简报" type="button"><span class="nav-icon">01</span><span class="nav-label">今日简报</span></button>
       </div>
-    </div>
-    <nav class="sidebar-nav" aria-label="贸易工作流">
-      <div class="nav-section">
-        <div class="nav-section-title"><span>01</span> 工作台</div>
-        <button class="nav-item active" data-context="daily" data-title="今日简报" type="button"><span class="nav-icon">▤</span><span class="nav-label">今日简报</span><span class="nav-index">01</span></button>
+      <div class="nav-cluster">
+        <span class="nav-cluster-label">ACQUIRE</span>
+        <button class="nav-item" data-context="lead" data-title="客户开发" type="button"><span class="nav-icon">02</span><span class="nav-label">客户开发</span></button>
+        <button class="nav-item" data-context="platform" data-title="网站诊断" type="button"><span class="nav-icon">03</span><span class="nav-label">网站诊断</span></button>
+        <button class="nav-item" data-context="social" data-title="社媒营销" type="button"><span class="nav-icon">04</span><span class="nav-label">社媒营销</span></button>
+        <button class="nav-item" data-context="linkedin" data-title="LinkedIn 营销" type="button"><span class="nav-icon">05</span><span class="nav-label">LinkedIn</span></button>
+        <button class="nav-item" data-context="customs" data-title="海关数据" type="button"><span class="nav-icon">06</span><span class="nav-label">海关数据</span></button>
       </div>
-      <div class="nav-section">
-        <div class="nav-section-title"><span>02</span> 获客引流</div>
-        <button class="nav-item" data-context="lead" data-title="客户开发" type="button"><span class="nav-icon">↗</span><span class="nav-label">客户开发</span><span class="nav-index">02</span></button>
-        <button class="nav-item" data-context="platform" data-title="网站诊断" type="button"><span class="nav-icon">⌁</span><span class="nav-label">网站诊断</span><span class="nav-index">03</span></button>
-        <button class="nav-item" data-context="social" data-title="社媒营销" type="button"><span class="nav-icon">◎</span><span class="nav-label">社媒营销</span><span class="nav-index">04</span></button>
-        <button class="nav-item" data-context="linkedin" data-title="LinkedIn 营销" type="button"><span class="nav-icon">in</span><span class="nav-label">LinkedIn</span><span class="nav-index">05</span></button>
-        <button class="nav-item" data-context="customs" data-title="海关数据" type="button"><span class="nav-icon">⇄</span><span class="nav-label">海关数据</span><span class="nav-index">06</span></button>
+      <div class="nav-cluster">
+        <span class="nav-cluster-label">CONVERT</span>
+        <button class="nav-item" data-view="customers" type="button"><span class="nav-icon">07</span><span class="nav-label">客户管理</span></button>
+        <button class="nav-item" data-view="documents" type="button"><span class="nav-icon">08</span><span class="nav-label">文档库</span></button>
+        <button class="nav-item" data-context="docgen" data-title="文档生成" type="button"><span class="nav-icon">09</span><span class="nav-label">文档生成</span></button>
       </div>
-      <div class="nav-section">
-        <div class="nav-section-title"><span>03</span> 销售转化</div>
-        <button class="nav-item" data-view="customers" type="button"><span class="nav-icon">▦</span><span class="nav-label">客户管理</span><span class="nav-index">07</span></button>
-        <button class="nav-item" data-view="documents" type="button"><span class="nav-icon">▣</span><span class="nav-label">文档库</span><span class="nav-index">08</span></button>
-        <button class="nav-item" data-context="docgen" data-title="文档生成" type="button"><span class="nav-icon">▧</span><span class="nav-label">文档生成</span><span class="nav-index">09</span></button>
-      </div>
-      <div class="nav-section">
-        <div class="nav-section-title"><span>04</span> 工具</div>
-        <button class="nav-item" data-view="osint" type="button"><span class="nav-icon">⊕</span><span class="nav-label">客户背调</span><span class="nav-index">10</span></button>
-        <button class="nav-item" data-view="tasks" type="button"><span class="nav-icon">◷</span><span class="nav-label">定时任务</span><span class="nav-index">11</span></button>
-      </div>
-      <div class="nav-section">
-        <div class="nav-section-title"><span>05</span> 历史</div>
-        <button class="nav-item" data-view="history" type="button"><span class="nav-icon">↶</span><span class="nav-label">对话记录</span><span class="nav-index">12</span></button>
+      <div class="nav-cluster">
+        <span class="nav-cluster-label">OPERATE</span>
+        <button class="nav-item" data-view="osint" type="button"><span class="nav-icon">10</span><span class="nav-label">客户背调</span></button>
+        <button class="nav-item" data-view="tasks" type="button"><span class="nav-icon">11</span><span class="nav-label">定时任务</span></button>
+        <button class="nav-item" data-view="history" type="button"><span class="nav-icon">12</span><span class="nav-label">对话记录</span></button>
       </div>
     </nav>
-    <div class="workspace-account">
-      <span class="account-dot"></span><span id="account-email">已登录</span>
-    </div>
-    <div class="sidebar-footer">
-      <button id="model-settings-button" type="button" data-tip="模型设置">⚙️</button>
-      <button id="skills-help-button" type="button" data-tip="技能帮助">📖</button>
-      <button id="onboarding-button" type="button" data-tip="新手引导">🎓</button>
-      <button id="logout-button" type="button" data-tip="退出登录">↪</button>
-    </div>
-  </aside>
-  <section class="main-column">
-    <header class="workspace-globalbar">
-      <div class="global-title-group">
-        <button id="mobile-open" class="mobile-open" type="button" aria-label="打开导航">☰</button>
-        <div>
-          <div class="global-kicker">TRADE OPS / <span id="global-breadcrumb">TODAY</span></div>
-          <h1 id="global-title">今日简报</h1>
+    <button id="mobile-scrim" class="mobile-scrim" type="button" aria-label="关闭工作流导航" hidden></button>
+
+    <section class="kpi-grid" aria-label="业务指标">
+      <article class="kpi-card">
+        <span class="kpi-label" id="kpi-label-1">ACTIVE CUSTOMERS</span>
+        <div class="kpi-value-row"><strong class="kpi-number" id="kpi-value-1">—</strong><span class="kpi-delta positive" id="kpi-delta-1">SYNCED</span></div>
+      </article>
+      <article class="kpi-card">
+        <span class="kpi-label" id="kpi-label-2">QUALIFIED ACCOUNTS</span>
+        <div class="kpi-value-row"><strong class="kpi-number" id="kpi-value-2">—</strong><span class="kpi-delta" id="kpi-delta-2">LOCAL</span></div>
+      </article>
+      <article class="kpi-card">
+        <span class="kpi-label" id="kpi-label-3">AI WORKFLOWS</span>
+        <div class="kpi-value-row"><strong class="kpi-number" id="kpi-value-3">—</strong><span class="kpi-delta positive" id="kpi-delta-3">READY</span></div>
+      </article>
+      <article class="kpi-card">
+        <span class="kpi-label" id="kpi-label-4">MODEL STATUS</span>
+        <div class="kpi-value-row"><strong class="kpi-number" id="kpi-value-4">—</strong><span class="kpi-delta" id="kpi-delta-4">LOCAL</span></div>
+      </article>
+    </section>
+
+    <section class="main-column">
+      <header class="workspace-globalbar">
+        <div class="global-title-group">
+          <div>
+            <div class="global-kicker">WORKSPACE / <span id="global-breadcrumb">TODAY</span></div>
+            <h1 id="global-title">今日简报</h1>
+          </div>
         </div>
-      </div>
-      <div class="global-actions">
-        <span class="global-state"><i></i> LOCAL SESSION</span>
-        <time id="global-clock" class="global-clock">--:--:--</time>
-        <button id="ops-toggle" class="ops-toggle" type="button" aria-controls="operations-rail" aria-expanded="false">操作轨</button>
-      </div>
-    </header>
-    <main class="main" id="app" aria-live="polite">
-      <div class="workspace-loading"><div class="spinner"></div><span>正在载入工作台…</span></div>
-    </main>
-  </section>
-  <aside class="operations-rail" id="operations-rail" aria-label="运营操作轨">
-    <header class="rail-header">
-      <div>
-        <span class="rail-eyebrow">OP CONTROL · PRIVATE</span>
-        <h2 id="rail-title">今日操作</h2>
-      </div>
-      <button id="rail-close" class="rail-close" type="button" aria-label="关闭操作轨">×</button>
-    </header>
-    <section class="rail-card rail-stage-card">
-      <div class="rail-row"><span>当前会话</span><strong id="rail-stage">READY</strong></div>
-      <div class="rail-progress" aria-hidden="true"><span id="rail-progress-fill"></span></div>
-      <div class="rail-foot"><span>本机数据</span><span>已加密 · 可审计</span></div>
+        <div class="global-actions">
+          <span class="range-filter">RANGE <strong>NEAR 30 DAYS</strong></span>
+          <span class="global-state"><i></i> LIVE</span>
+          <time id="global-clock" class="global-clock">--:--:--</time>
+        </div>
+      </header>
+      <main class="main" id="app" aria-live="polite">
+        <div class="workspace-loading">
+          <div class="loading-skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+          <span>正在载入业务数据…</span>
+        </div>
+      </main>
     </section>
-    <section class="rail-section">
-      <div class="rail-section-head"><h3>业务快照</h3><span id="rail-module">TODAY</span></div>
-      <div class="rail-metrics" id="rail-metrics"></div>
-    </section>
-    <section class="rail-section">
-      <div class="rail-section-head"><h3>待处理</h3><span class="rail-count" id="rail-count">0</span></div>
-      <div class="rail-queue" id="rail-queue"></div>
-    </section>
-    <section class="rail-section rail-checklist-section">
-      <div class="rail-section-head"><h3>运行检查</h3><span>POLICY</span></div>
-      <ul class="rail-checklist">
-        <li><span class="check-mark">✓</span><span>账号会话已隔离</span></li>
-        <li><span class="check-mark">✓</span><span>公司级业务数据</span></li>
-        <li><span class="check-mark" id="rail-model-check">·</span><span id="rail-model-copy">模型连接待配置</span></li>
-        <li><span class="check-mark">✓</span><span>本地文件优先</span></li>
-      </ul>
-    </section>
-    <button class="rail-primary" id="rail-primary-action" type="button">配置模型</button>
-    <footer class="rail-audit">
-      <span>AUDIT LOG · LOCAL ONLY</span>
-      <strong>NO TRIAL · NO ACTIVATION</strong>
+
+    <footer class="app-footer">
+      <span>TRADE AI · LOCAL-FIRST B2B WORKSPACE</span>
+      <span>NO TRIAL · NO ACTIVATION</span>
     </footer>
-  </aside>
-  <div id="rail-backdrop" class="rail-backdrop" hidden></div>
+  </div>
+
   <div id="toast-container" class="toast-container" aria-live="assertive"></div>
   <dialog id="app-dialog" class="app-dialog">
     <div class="app-dialog-head"><h3 id="dialog-title"></h3><button id="dialog-close" class="dialog-close" type="button" aria-label="关闭">×</button></div>

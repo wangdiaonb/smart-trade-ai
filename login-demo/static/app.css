@@ -1,27 +1,28 @@
-@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 :root {
   color-scheme: light;
-  --ink: #121210;
-  --canvas: #cfe8d6;
-  --canvas-deep: #b9dcc4;
-  --paper: #fffdf8;
-  --paper-muted: #f7f4e9;
-  --green: #2e8c42;
-  --green-soft: #9ed8ad;
-  --green-pale: #def2e4;
-  --amber: #e8a030;
-  --red: #c03a3a;
-  --muted: #626b63;
-  --accent: var(--green);
+  --bg: #fafaf7;
+  --surface: #ffffff;
+  --surface-soft: #f5f5f1;
+  --ink: #1b1d21;
+  --muted: #6d727b;
+  --subtle: #9499a1;
+  --line: rgb(27 29 33 / 12%);
+  --line-strong: rgb(27 29 33 / 22%);
+  --blue: #2d5bff;
+  --blue-strong: #1f48dc;
+  --blue-soft: #edf1ff;
+  --green: #128454;
+  --green-soft: #e8f6ef;
+  --red: #c63749;
+  --accent: var(--blue);
   --font-display: 'Archivo', 'Microsoft YaHei', 'PingFang SC', sans-serif;
-  --font-body: 'Hanken Grotesk', 'Microsoft YaHei', 'PingFang SC', sans-serif;
-  --font-mono: 'Space Mono', 'Cascadia Mono', 'Microsoft YaHei', monospace;
-  --brut: 2px solid var(--ink);
-  --brut-heavy: 3px solid var(--ink);
-  --shadow-sm: 3px 3px 0 var(--ink);
-  --shadow: 5px 5px 0 var(--ink);
-  --shadow-lg: 8px 8px 0 var(--ink);
+  --font-body: 'Inter', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  --font-mono: 'IBM Plex Mono', 'Cascadia Mono', 'Microsoft YaHei', monospace;
+  --radius: 4px;
+  --radius-sm: 3px;
+  --shadow: 0 18px 55px rgb(27 29 33 / 9%);
 }
 
 * {
@@ -30,7 +31,7 @@
 
 html {
   min-width: 320px;
-  background: var(--canvas);
+  background: var(--bg);
 }
 
 body {
@@ -38,14 +39,10 @@ body {
   min-height: 100vh;
   min-height: 100dvh;
   margin: 0;
-  background-color: var(--canvas);
-  background-image:
-    linear-gradient(rgb(18 18 16 / 8%) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(18 18 16 / 8%) 1px, transparent 1px);
-  background-size: 24px 24px;
+  background: var(--bg);
   color: var(--ink);
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 13px;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -67,14 +64,15 @@ button {
   position: fixed;
   top: 8px;
   left: 8px;
-  z-index: 50;
-  padding: 8px 12px;
-  border: var(--brut);
-  background: var(--paper);
+  z-index: 30;
+  padding: 7px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow);
   color: var(--ink);
-  font-family: var(--font-display);
-  font-weight: 700;
-  transform: translateY(-150%);
+  font-weight: 600;
+  transform: translateY(-160%);
 }
 
 .skip-link:focus {
@@ -83,27 +81,27 @@ button {
 
 .page-shell {
   display: grid;
-  width: min(1180px, calc(100% - 36px));
-  min-height: calc(100vh - 56px);
-  min-height: calc(100dvh - 56px);
-  grid-template-columns: minmax(0, 1.12fr) minmax(380px, 0.88fr);
+  width: min(1120px, calc(100% - 36px));
+  min-height: min(820px, calc(100vh - 56px));
+  min-height: min(820px, calc(100dvh - 56px));
+  grid-template-columns: minmax(0, 1.12fr) minmax(390px, 0.88fr);
   margin: 28px auto;
-  border: 3px solid var(--ink);
-  background: var(--paper);
-  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
 }
 
 .auth-story {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  padding: 25px 30px 18px;
-  overflow: hidden;
-  border-right: var(--brut-heavy);
+  padding: 26px 30px 19px;
+  border-right: 1px solid var(--line);
   background:
-    radial-gradient(circle, rgb(18 18 16 / 12%) 1px, transparent 1px),
-    var(--canvas);
-  background-size: 20px 20px;
+    radial-gradient(circle at 10% 10%, rgb(45 91 255 / 7%), transparent 34%),
+    var(--bg);
 }
 
 .brand-row {
@@ -114,18 +112,15 @@ button {
 
 .brand-mark {
   display: grid;
-  width: 42px;
-  height: 42px;
+  width: 22px;
+  height: 22px;
   flex: 0 0 auto;
   place-items: center;
-  border: var(--brut);
-  background: var(--ink);
-  box-shadow: var(--shadow-sm);
-  color: var(--paper);
+  background: var(--blue);
+  color: var(--surface);
   font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 900;
-  letter-spacing: -0.06em;
+  font-size: 7px;
+  font-weight: 700;
 }
 
 .brand-copy {
@@ -135,73 +130,65 @@ button {
 
 .brand-copy strong {
   font-family: var(--font-display);
-  font-size: 18px;
-  font-weight: 900;
-  letter-spacing: -0.04em;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
   line-height: 1;
 }
 
 .brand-copy small {
   color: var(--muted);
   font-family: var(--font-mono);
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-size: 7px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
 }
 
 .story-content {
-  padding: clamp(38px, 8vh, 84px) 0 25px;
+  padding: clamp(38px, 8vh, 78px) 0 26px;
 }
 
 .eyebrow {
-  display: inline-flex;
+  display: block;
   width: max-content;
-  margin: 0 0 14px;
-  padding: 4px 7px;
-  border: var(--brut);
-  background: var(--green-soft);
-  color: var(--ink);
+  margin: 0 0 13px;
+  color: var(--blue);
   font-family: var(--font-mono);
   font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  line-height: 1.3;
+  font-weight: 500;
+  letter-spacing: 0.12em;
 }
 
 .story-content h1 {
-  max-width: 620px;
+  max-width: 640px;
   margin: 0;
   color: var(--ink);
   font-family: var(--font-display);
-  font-size: clamp(45px, 6.5vw, 82px);
-  font-weight: 900;
-  letter-spacing: -0.075em;
-  line-height: 0.91;
+  font-size: clamp(44px, 6vw, 72px);
+  font-weight: 600;
+  letter-spacing: -0.07em;
+  line-height: 0.96;
   text-wrap: balance;
 }
 
 .story-content h1 span {
-  display: inline-block;
-  margin-top: 6px;
-  padding: 1px 7px 5px;
-  background: var(--ink);
-  color: var(--paper);
-  transform: rotate(-1deg);
+  color: var(--blue);
 }
 
 .story-lead {
-  max-width: 560px;
-  margin: 22px 0 0;
-  color: #3f4840;
-  font-size: 14px;
-  line-height: 1.72;
+  max-width: 550px;
+  margin: 20px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
 }
 
 .workflow-card {
   margin-top: auto;
-  border: var(--brut-heavy);
-  background: var(--paper);
-  box-shadow: var(--shadow);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
 }
 
 .workflow-head {
@@ -210,28 +197,28 @@ button {
   justify-content: space-between;
   gap: 10px;
   padding: 8px 10px;
-  border-bottom: var(--brut);
-  background: var(--green-soft);
+  border-bottom: 1px solid var(--line);
+  background: #f4f5f7;
+  color: var(--muted);
   font-family: var(--font-mono);
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-size: 7px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
 }
 
 .workflow-head strong {
-  padding: 2px 5px;
-  border: 1px solid var(--ink);
-  background: var(--paper);
+  color: var(--ink);
   font-size: 7px;
+  font-weight: 500;
 }
 
 .workflow-stage {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
   align-items: center;
   gap: 9px;
-  padding: 10px;
-  border-bottom: 1px solid var(--ink);
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
 }
 
 .workflow-stage:last-child {
@@ -240,14 +227,15 @@ button {
 
 .stage-no {
   display: grid;
-  width: 27px;
-  height: 27px;
+  width: 25px;
+  height: 25px;
   place-items: center;
-  border: var(--brut);
-  background: var(--paper-muted);
+  border-radius: 2px;
+  background: var(--blue-soft);
+  color: var(--blue);
   font-family: var(--font-mono);
-  font-size: 8px;
-  font-weight: 700;
+  font-size: 7px;
+  font-weight: 500;
 }
 
 .workflow-stage div {
@@ -256,9 +244,8 @@ button {
 
 .workflow-stage strong {
   display: block;
-  font-family: var(--font-display);
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 500;
 }
 
 .workflow-stage small {
@@ -267,19 +254,17 @@ button {
   overflow: hidden;
   color: var(--muted);
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 7px;
   line-height: 1.45;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .stage-state {
-  padding: 2px 5px;
-  border: 1px solid var(--ink);
-  background: var(--green-pale);
+  color: var(--green);
   font-family: var(--font-mono);
   font-size: 7px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .story-footer {
@@ -287,20 +272,19 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding-top: 15px;
+  padding-top: 14px;
   color: var(--muted);
   font-family: var(--font-mono);
   font-size: 7px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 
 .auth-panel {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  padding: 25px 30px 18px;
-  background: var(--paper);
+  padding: 26px 30px 19px;
+  background: var(--surface);
 }
 
 .auth-meta {
@@ -308,87 +292,84 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding-bottom: 11px;
-  border-bottom: var(--brut);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
   color: var(--muted);
   font-family: var(--font-mono);
   font-size: 7px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
+  font-weight: 500;
+  letter-spacing: 0.06em;
 }
 
 .meta-status {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  color: var(--green);
 }
 
 .meta-status i {
-  width: 7px;
-  height: 7px;
-  border: 1px solid var(--ink);
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--green);
 }
 
 .auth-content {
   display: flex;
+  width: min(100%, 380px);
   flex: 1;
   flex-direction: column;
   justify-content: center;
   margin: 0 auto;
-  padding: 30px 0;
-  width: min(100%, 390px);
+  padding: 28px 0;
 }
 
 .auth-content h2 {
   margin: 0;
   color: var(--ink);
   font-family: var(--font-display);
-  font-size: clamp(30px, 4vw, 42px);
-  font-weight: 900;
-  letter-spacing: -0.055em;
+  font-size: clamp(29px, 3.6vw, 39px);
+  font-weight: 600;
+  letter-spacing: -0.05em;
   line-height: 1;
 }
 
 .subtitle {
-  margin: 9px 0 24px;
+  margin: 9px 0 22px;
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.65;
+  font-size: 11px;
+  line-height: 1.6;
 }
 
 .mode-switch {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin-bottom: 20px;
-  padding: 5px;
-  border: var(--brut);
-  background: var(--canvas);
+  margin-bottom: 18px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
 }
 
 .mode-button {
-  min-height: 38px;
-  border: 2px solid transparent;
-  border-radius: 0;
+  min-height: 35px;
+  border: 0;
+  border-radius: 2px;
   background: transparent;
-  color: var(--ink);
-  font-family: var(--font-display);
-  font-size: 11px;
-  font-weight: 800;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
 }
 
 .mode-button:hover {
-  border-color: var(--ink);
-  background: var(--green-pale);
+  color: var(--ink);
 }
 
 .mode-button.is-active {
-  border-color: var(--ink);
-  background: var(--ink);
-  box-shadow: var(--shadow-sm);
-  color: var(--paper);
+  background: var(--surface);
+  box-shadow: 0 1px 4px rgb(27 29 33 / 9%);
+  color: var(--ink);
 }
 
 .auth-form {
@@ -397,69 +378,64 @@ button {
 }
 
 .auth-form label {
-  margin: 0 0 6px;
-  color: var(--ink);
+  margin: 0 0 5px;
+  color: var(--text-secondary, #50545b);
   font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-size: 8px;
+  font-weight: 500;
 }
 
 .auth-form input {
   width: 100%;
-  height: 45px;
-  margin: 0 0 15px;
-  padding: 0 11px;
-  border: var(--brut);
-  border-radius: 0;
+  height: 41px;
+  margin: 0 0 13px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
   outline: none;
-  background: var(--paper);
+  background: var(--surface);
   color: var(--ink);
-  font-size: 12px;
-  box-shadow: inset 3px 3px 0 rgb(18 18 16 / 6%);
+  font-size: 11px;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
 .auth-form input::placeholder {
-  color: #7b827b;
+  color: var(--subtle);
 }
 
 .auth-form input:focus {
-  border-color: var(--ink);
-  box-shadow: 3px 3px 0 var(--ink);
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgb(45 91 255 / 15%);
 }
 
 .primary-button {
   display: flex;
-  height: 46px;
+  height: 42px;
   align-items: center;
   justify-content: space-between;
   margin-top: 3px;
-  padding: 0 13px;
-  border: var(--brut);
-  border-radius: 0;
-  background: var(--ink);
-  box-shadow: var(--shadow-sm);
-  color: var(--paper);
-  font-family: var(--font-display);
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.02em;
+  padding: 0 12px;
+  border: 1px solid var(--blue);
+  border-radius: var(--radius-sm);
+  background: var(--blue);
+  color: var(--surface);
+  font-size: 10px;
+  font-weight: 600;
+  transition: background 150ms ease, border-color 150ms ease;
 }
 
 .primary-button span {
   font-family: var(--font-mono);
-  font-size: 16px;
+  font-size: 13px;
 }
 
 .primary-button:hover {
-  background: var(--green);
-  box-shadow: 5px 5px 0 var(--ink);
-  transform: translate(-2px, -2px);
+  border-color: var(--blue-strong);
+  background: var(--blue-strong);
 }
 
 .primary-button:active {
-  box-shadow: 0 0 0 var(--ink);
-  transform: translate(2px, 2px);
+  transform: translateY(1px);
 }
 
 .primary-button:disabled {
@@ -469,11 +445,11 @@ button {
 }
 
 .status-message {
-  min-height: 18px;
-  margin: 11px 0 0;
+  min-height: 17px;
+  margin: 10px 0 0;
   color: var(--red);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 500;
   line-height: 1.5;
 }
 
@@ -483,30 +459,31 @@ button {
 
 .auth-note {
   display: grid;
-  grid-template-columns: 27px minmax(0, 1fr);
-  gap: 9px;
-  margin-top: 20px;
-  padding-top: 13px;
-  border-top: var(--brut);
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
 }
 
 .note-index {
   display: grid;
-  width: 27px;
-  height: 27px;
+  width: 23px;
+  height: 23px;
   place-items: center;
-  border: var(--brut);
-  background: var(--green-soft);
+  border-radius: 2px;
+  background: var(--blue-soft);
+  color: var(--blue);
   font-family: var(--font-mono);
-  font-size: 8px;
-  font-weight: 700;
+  font-size: 7px;
+  font-weight: 500;
 }
 
 .auth-note p {
   margin: 0;
   color: var(--muted);
-  font-size: 10px;
-  line-height: 1.65;
+  font-size: 9px;
+  line-height: 1.6;
 }
 
 .auth-footer {
@@ -515,12 +492,11 @@ button {
   justify-content: space-between;
   gap: 10px;
   margin-top: auto;
-  padding-top: 13px;
-  border-top: var(--brut);
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
   color: var(--muted);
   font-family: var(--font-mono);
   font-size: 7px;
-  font-weight: 700;
   letter-spacing: 0.04em;
 }
 
@@ -533,10 +509,9 @@ button {
   }
 
   .auth-story {
-    min-height: auto;
     padding: 19px 20px 16px;
     border-right: 0;
-    border-bottom: var(--brut-heavy);
+    border-bottom: 1px solid var(--line);
   }
 
   .story-content {
@@ -544,11 +519,11 @@ button {
   }
 
   .story-content h1 {
-    font-size: clamp(42px, 11vw, 68px);
+    font-size: clamp(41px, 10vw, 64px);
   }
 
   .story-lead {
-    margin-top: 17px;
+    margin-top: 16px;
   }
 
   .workflow-card {
@@ -556,12 +531,12 @@ button {
   }
 
   .auth-panel {
-    min-height: 590px;
+    min-height: 550px;
     padding: 20px;
   }
 
   .auth-content {
-    padding: 30px 0;
+    padding: 27px 0;
   }
 }
 
@@ -569,7 +544,6 @@ button {
   .page-shell {
     width: calc(100% - 18px);
     margin: 9px auto;
-    box-shadow: 5px 5px 0 var(--ink);
   }
 
   .auth-story {
@@ -577,24 +551,24 @@ button {
   }
 
   .brand-mark {
-    width: 38px;
-    height: 38px;
+    width: 20px;
+    height: 20px;
   }
 
   .story-content {
-    padding: 27px 0 19px;
+    padding: 26px 0 18px;
   }
 
   .story-content h1 {
-    font-size: 43px;
+    font-size: 41px;
   }
 
   .story-lead {
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .workflow-stage {
-    grid-template-columns: 25px minmax(0, 1fr);
+    grid-template-columns: 24px minmax(0, 1fr);
   }
 
   .stage-state {
@@ -605,29 +579,24 @@ button {
     white-space: normal;
   }
 
-  .story-footer {
+  .story-footer,
+  .auth-footer {
     align-items: flex-start;
     flex-direction: column;
     gap: 3px;
   }
 
   .auth-panel {
-    min-height: 560px;
+    min-height: 525px;
     padding: 16px 14px 14px;
   }
 
   .auth-content {
-    padding: 26px 0;
+    padding: 24px 0;
   }
 
   .auth-content h2 {
-    font-size: 32px;
-  }
-
-  .auth-footer {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 3px;
+    font-size: 30px;
   }
 }
 
