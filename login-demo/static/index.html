@@ -1,231 +1,46 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#f4f6f4">
-    <title>Workroom · 外贸工作台</title>
-    <link rel="stylesheet" href="/static/app.css">
-    <script src="/static/app.js" type="module"></script>
-  </head>
-  <body>
-    <main class="page-shell">
-      <section id="auth-panel" class="auth-panel" aria-labelledby="auth-title">
-        <header class="brand-row">
-          <span class="brand-mark" aria-hidden="true">W</span>
-          <span class="brand-name">Workroom</span>
-        </header>
-
-        <div class="auth-content">
-          <p class="eyebrow">个人空间</p>
-          <h1 id="auth-title">欢迎回来</h1>
-          <p id="auth-subtitle" class="subtitle">登录以进入你的工作台</p>
-
-          <div class="mode-switch" role="tablist" aria-label="账户操作">
-            <button id="show-login" class="mode-button is-active" type="button" role="tab" aria-selected="true">登录</button>
-            <button id="show-register" class="mode-button" type="button" role="tab" aria-selected="false">注册</button>
-          </div>
-
-          <form id="login-form" class="auth-form">
-            <label for="login-email">邮箱</label>
-            <input id="login-email" name="email" type="email" autocomplete="email" maxlength="254" required>
-            <label for="login-password">密码</label>
-            <input id="login-password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required>
-            <button class="primary-button" type="submit">登录</button>
-          </form>
-
-          <form id="register-form" class="auth-form" hidden>
-            <label for="register-email">邮箱</label>
-            <input id="register-email" name="email" type="email" autocomplete="email" maxlength="254" required>
-            <label for="register-password">密码</label>
-            <input id="register-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
-            <button class="primary-button" type="submit">创建账户</button>
-          </form>
-
-          <p id="status-message" class="status-message" role="status" aria-live="polite"></p>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f172a">
+  <title>Trade AI · 登录</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/app.js" type="module"></script>
+</head>
+<body>
+  <main class="page-shell">
+    <section id="auth-panel" class="auth-panel" aria-labelledby="auth-title">
+      <header class="brand-row">
+        <span class="brand-mark" aria-hidden="true">📦</span>
+        <span class="brand-name">Trade AI</span>
+      </header>
+      <div class="auth-content">
+        <p class="eyebrow">外贸业务流程复刻版</p>
+        <h1 id="auth-title">欢迎回来</h1>
+        <p id="auth-subtitle" class="subtitle">登录以进入你的公司空间</p>
+        <div class="mode-switch" role="tablist" aria-label="账户操作">
+          <button id="show-login" class="mode-button is-active" type="button" role="tab" aria-selected="true">登录</button>
+          <button id="show-register" class="mode-button" type="button" role="tab" aria-selected="false">注册</button>
         </div>
-        <footer class="auth-footer">本地演示</footer>
-      </section>
-
-      <section id="workspace" class="workspace" aria-label="外贸工作台" hidden>
-        <header class="workspace-header">
-          <a class="workspace-brand" href="/" aria-label="Workroom 首页">
-            <span class="brand-mark" aria-hidden="true">W</span>
-            <span class="brand-name">Workroom</span>
-          </a>
-          <button id="logout-button" class="quiet-button" type="button">退出登录</button>
-        </header>
-        <div class="business-shell">
-          <aside class="workspace-sidebar">
-            <div class="space-label">公司空间</div>
-            <strong id="space-name">正在加载…</strong>
-            <nav class="business-nav" aria-label="工作台导航">
-              <button type="button" data-view="dashboard" aria-current="page">总览</button>
-              <button type="button" data-view="chat">AI 工作台</button>
-              <button type="button" data-view="customers">客户管理 <span id="customer-count">0</span></button>
-              <button type="button" data-view="company">公司资料</button>
-              <button type="button" data-view="orders">订单与报价</button>
-              <button type="button" data-view="documents">文档与模板</button>
-              <button type="button" data-view="research">客户情报</button>
-              <button type="button" data-view="communications">邮件沟通</button>
-              <button type="button" data-view="automations">自动化</button>
-              <button type="button" data-view="model">模型与记忆</button>
-            </nav>
-            <div class="sidebar-account"><span class="identity-dot" aria-hidden="true"></span><span id="workspace-email" class="identity-email"></span></div>
-          </aside>
-          <div class="business-content">
-            <p id="business-message" class="business-message" role="status" aria-live="polite"></p>
-            <section id="dashboard-view" aria-labelledby="dashboard-title">
-              <div class="section-heading"><div><p class="eyebrow">工作空间概览</p><h1 id="dashboard-title">总览</h1><p id="dashboard-company" class="section-description">正在加载公司空间…</p></div><button id="quick-chat" type="button" class="primary-button compact">打开 AI 助手</button></div>
-              <div id="metric-grid" class="metric-grid" aria-label="业务数据概览"></div>
-              <div class="dashboard-columns">
-                <section class="dashboard-panel"><div class="dashboard-panel-heading"><h2 class="subsection-title">近期订单</h2><button type="button" class="text-button" data-jump="orders">查看全部</button></div><div id="dashboard-orders" class="dashboard-list"></div></section>
-                <section class="dashboard-panel"><div class="dashboard-panel-heading"><h2 class="subsection-title">待执行任务</h2><button type="button" class="text-button" data-jump="automations">管理自动化</button></div><div id="dashboard-tasks" class="dashboard-list"></div></section>
-              </div>
-            </section>
-            <section id="chat-view" aria-labelledby="chat-title" hidden>
-              <div class="section-heading"><div><p class="eyebrow">业务助手</p><h1 id="chat-title">AI 工作台</h1><p class="section-description">结合公司、客户资料和历史对话处理业务。</p></div><button id="new-conversation" type="button" class="quiet-button">＋ 新对话</button></div>
-              <div class="chat-layout">
-                <aside class="conversation-panel"><div class="conversation-caption">历史对话</div><div id="conversation-list"></div></aside>
-                <div class="chat-main">
-                  <div class="chat-options"><label>工作模式<select id="chat-skill"><option value="general">外贸助手</option></select></label><label>关联客户<select id="chat-customer"><option value="">不关联客户</option></select></label><button id="delete-conversation" type="button" class="text-button" disabled>删除对话</button></div>
-                  <label class="chat-document-label">本轮参考文档<select id="chat-document"><option value="">不附加文档</option></select></label>
-                  <div id="chat-messages" class="chat-messages" aria-live="polite"><div class="chat-welcome"><span aria-hidden="true">✳</span><h2>今天先处理哪件事？</h2><p>撰写开发信、整理客户需求，或规划下一次跟进。</p></div></div>
-                  <form id="chat-form"><label class="sr-only" for="chat-input">输入业务问题</label><textarea id="chat-input" rows="3" maxlength="20000" required placeholder="描述你的业务问题…"></textarea><div class="chat-composer-footer"><span id="chat-model-label">请先配置模型</span><div><button id="stop-chat" type="button" class="quiet-button" hidden>停止生成</button><button id="send-chat" class="primary-button compact" type="submit">发送</button></div></div></form>
-                  <p id="chat-message" class="form-message" role="status" aria-live="polite"></p>
-                </div>
-              </div>
-            </section>
-            <section id="orders-view" aria-labelledby="orders-title" hidden>
-              <div class="section-heading"><div><p class="eyebrow">业务进度</p><h1 id="orders-title">订单与报价</h1><p class="section-description">多商品订单、状态跟踪与可打印报价单。</p></div><button id="new-order" class="primary-button compact" type="button">＋ 新建订单</button></div>
-              <div id="orders-list" class="record-list"></div>
-            </section>
-            <section id="documents-view" aria-labelledby="documents-title" hidden>
-              <div class="section-heading"><div><p class="eyebrow">公司知识资料</p><h1 id="documents-title">文档与模板</h1><p class="section-description">存放产品资料和图纸，维护常用业务文案。</p></div><button id="new-library" type="button" class="quiet-button">＋ 新建文档库</button></div>
-              <form id="upload-form" class="upload-toolbar"><label>选择文档库<select id="library-select" required></select></label><label>选择文件（最多 12 MB）<input id="document-file" type="file" accept=".txt,.md,.csv,.pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp" required></label><button type="submit" class="primary-button compact">上传文件</button></form>
-              <p id="operations-message" class="form-message" role="status" aria-live="polite"></p><div id="documents-list" class="record-list"></div>
-              <div class="workspace-rule"></div><div class="section-heading"><div><h2 class="subsection-title">业务文案模板</h2><p class="section-description">支持 {{company}}、{{customer}}、{{products}}、{{contact}} 文字占位符。</p></div><button id="new-template" type="button" class="quiet-button">＋ 新建模板</button></div><div id="templates-list" class="record-list"></div>
-            </section>
-            <section id="research-view" aria-labelledby="research-title" hidden>
-              <div class="section-heading"><div><p class="eyebrow">公开信息研究</p><h1 id="research-title">客户情报</h1><p class="section-description">使用账号自己的 Tavily 搜索配置，保存带来源链接的研究记录。</p></div></div>
-              <form id="research-settings-form" class="research-settings"><label>Tavily API Key<input name="api_key" type="password" autocomplete="off" maxlength="1000" placeholder="填写新密钥；留空保留已保存密钥"></label><button class="quiet-button" type="submit">保存搜索配置</button><button id="clear-research-key" type="button" class="text-button">清除密钥</button><span id="research-key-state" class="muted">尚未配置</span></form>
-              <form id="research-form" class="customer-toolbar"><label class="sr-only" for="research-query">目标公司或问题</label><input id="research-query" name="query" minlength="2" maxlength="2000" required placeholder="输入目标公司、官网或要核验的问题"><label class="sr-only" for="research-customer">关联客户</label><select id="research-customer" name="customer_id"><option value="">不关联客户</option></select><button class="primary-button compact" type="submit">搜索公开信息</button></form>
-              <p id="research-message" class="form-message" role="status" aria-live="polite"></p><div id="research-reports" class="record-list"></div>
-            </section>
-            <section id="communications-view" aria-labelledby="communications-title" hidden>
-              <div class="section-heading"><div><p class="eyebrow">客户沟通</p><h1 id="communications-title">邮件沟通</h1><p class="section-description">使用当前公司空间自己的 SMTP 账户发送单封邮件，并保留发送状态。</p></div></div>
-              <form id="smtp-settings-form" class="smtp-settings">
-                <div class="form-grid">
-                  <label>SMTP 主机<input name="host" maxlength="253" required placeholder="smtp.example.com"></label>
-                  <label>端口<input name="port" type="number" min="1" max="65535" value="587" required></label>
-                  <label>连接安全<select name="security"><option value="starttls">STARTTLS</option><option value="ssl">SSL</option><option value="none">无加密（仅本地测试）</option></select></label>
-                  <label>登录用户<input name="username" maxlength="500" autocomplete="username"></label>
-                  <label>发件邮箱<input name="from_email" type="email" maxlength="254" required></label>
-                  <label>SMTP 密码<input name="password" type="password" autocomplete="new-password" maxlength="1000" placeholder="留空保留已保存密码"></label>
-                </div>
-                <div class="settings-actions"><button type="submit" class="quiet-button">保存 SMTP 配置</button><button id="clear-smtp-password" type="button" class="text-button">清除密码</button><span id="smtp-password-state" class="muted">尚未配置</span></div>
-                <p id="smtp-message" class="form-message" role="status" aria-live="polite"></p>
-              </form>
-              <div class="workspace-rule"></div>
-              <form id="mail-form" class="business-form">
-                <div class="form-grid">
-                  <label>关联客户<select id="mail-customer" name="customer_id"><option value="">不关联客户</option></select></label>
-                  <label>使用模板<select id="mail-template"><option value="">不使用模板</option></select></label>
-                  <label class="full-width">收件人<input id="mail-to" name="to" type="email" maxlength="254" required></label>
-                  <label class="full-width">主题<input id="mail-subject" name="subject" maxlength="500" required></label>
-                  <label class="full-width">正文<textarea id="mail-body" name="body" rows="10" maxlength="100000" required></textarea></label>
-                </div>
-                <div class="settings-actions"><button type="submit" class="primary-button compact">检查并发送</button><span class="muted">每小时最多 10 封，单封发送需要再次确认。</span></div>
-                <p id="mail-message" class="form-message" role="status" aria-live="polite"></p>
-              </form>
-              <div class="workspace-rule"></div><h2 class="subsection-title">发送记录</h2><div id="mail-history" class="record-list"></div>
-            </section>
-            <section id="automations-view" aria-labelledby="automations-title" hidden>
-              <div class="section-heading"><div><p class="eyebrow">本地调度</p><h1 id="automations-title">自动化</h1><p class="section-description">按公司资料和客户数据定时生成文本结果，运行记录保存在当前空间。</p></div><button id="new-automation" class="primary-button compact" type="button">＋ 新建任务</button></div>
-              <div id="automations-list" class="record-list"></div>
-              <div class="workspace-rule"></div><h2 class="subsection-title">最近运行</h2><div id="automation-runs" class="record-list"></div>
-            </section>
-            <section id="model-view" aria-labelledby="model-title" hidden>
-              <p class="eyebrow">工作空间设置</p><h1 id="model-title">模型与记忆</h1><p class="section-description">每个账号独立配置。发送问题时，会将当前公司资料、关联客户和记忆备注提交给所选模型服务。</p>
-              <form id="model-form" class="business-form"><div class="form-grid"><label>模型服务<select name="provider"><option value="deepseek">DeepSeek</option></select></label><label>模型名称<input name="model" value="deepseek-chat" required maxlength="200"></label><label class="full-width">API Key<input name="api_key" type="password" autocomplete="off" maxlength="1000" placeholder="填写新密钥；留空保留已保存的密钥"></label></div><div class="settings-actions"><button class="primary-button compact" type="submit">保存模型设置</button><button id="clear-model-key" class="text-button" type="button">清除已保存的密钥</button></div><p id="model-key-state" class="section-description">尚未配置 API Key</p><p id="model-message" class="form-message" role="status" aria-live="polite"></p></form>
-              <div class="workspace-rule"></div>
-              <h2 class="subsection-title">业务记忆备注</h2><p class="section-description">保存公司业务偏好和长期约定，后续对话会参考。请勿填写密码或密钥。</p>
-              <form id="memory-form" class="business-form"><label for="memory-content" class="sr-only">业务记忆备注</label><textarea id="memory-content" name="content" rows="6" maxlength="20000" placeholder="例如：开发信保持简短；报价默认使用 USD；重点开发欧洲分销商。"></textarea><div class="settings-actions"><button class="primary-button compact" type="submit">保存记忆备注</button></div><p id="memory-message" class="form-message" role="status" aria-live="polite"></p></form>
-            </section>
-            <section id="customers-view" aria-labelledby="workspace-title">
-              <div class="section-heading">
-                <div><p class="eyebrow">客户关系管理</p><h1 id="workspace-title">客户管理</h1><p class="section-description">维护客户资料，让每一次跟进都有据可查。</p></div>
-                <button id="add-customer" class="primary-button compact" type="button">＋ 新增客户</button>
-              </div>
-              <form id="customer-search" class="customer-toolbar" role="search">
-                <label class="sr-only" for="search-query">搜索客户</label>
-                <input id="search-query" name="q" type="search" maxlength="200" placeholder="搜索公司、联系人、邮箱或备注">
-                <label class="sr-only" for="filter-tier">客户分级</label>
-                <select id="filter-tier" name="tier"><option value="">全部分级</option><option>A</option><option>B</option><option>C</option></select>
-                <label class="sr-only" for="filter-country">国家或地区</label>
-                <input id="filter-country" name="country" maxlength="200" placeholder="国家或地区">
-                <button class="quiet-button" type="submit">搜索</button>
-              </form>
-              <div class="list-tools">
-                <p id="list-summary">正在加载客户…</p>
-                <div><button id="import-customers" class="text-button" type="button">导入 CSV</button><button id="export-customers" class="text-button" type="button">导出 CSV</button></div>
-              </div>
-              <div class="table-scroll">
-                <table class="customer-table"><thead><tr><th scope="col">客户 / 公司</th><th scope="col">联系人</th><th scope="col">国家或地区</th><th scope="col">分级</th><th scope="col">操作</th></tr></thead><tbody id="customer-rows"></tbody></table>
-              </div>
-              <div id="customer-empty" class="empty-state" hidden><span aria-hidden="true">◎</span><h2>从第一位客户开始</h2><p>点击“新增客户”，或导入现有的客户 CSV 文件。</p></div>
-              <div class="pagination"><span id="page-summary"></span><div><button id="previous-page" class="quiet-button" type="button">上一页</button><button id="next-page" class="quiet-button" type="button">下一页</button></div></div>
-            </section>
-            <section id="company-view" aria-labelledby="company-title" hidden>
-              <p class="eyebrow">公司空间设置</p><h1 id="company-title">公司资料</h1><p class="section-description">完善公司信息，供后续业务工作使用。</p>
-              <form id="company-form" class="business-form">
-                <div class="form-grid">
-                  <label>公司名称<input name="name" required maxlength="200"></label>
-                  <label>公司网站<input name="website" maxlength="2000" placeholder="https://example.com"></label>
-                  <label>联系人姓名<input name="contact_name" maxlength="2000"></label>
-                  <label>联系人邮箱<input name="contact_email" type="email" maxlength="2000"></label>
-                  <label>所属行业<input name="industry" maxlength="2000"></label>
-                  <label>目标市场<input name="target_region" maxlength="2000"></label>
-                  <label class="full-width">公司地址<input name="address" maxlength="2000"></label>
-                  <label class="full-width">主营产品<textarea name="products" rows="3" maxlength="20000"></textarea></label>
-                  <label class="full-width">业务助手身份设定<textarea name="agent_identity_md" rows="4" maxlength="20000" placeholder="说明公司优势、产品定位和业务沟通要求"></textarea></label>
-                </div>
-                <button class="primary-button compact" type="submit">保存公司资料</button>
-              </form>
-            </section>
-          </div>
-        </div>
-      </section>
-    </main>
-    <dialog id="customer-dialog" aria-labelledby="customer-dialog-title">
-      <form id="customer-form" class="business-form">
-        <div class="dialog-heading"><h2 id="customer-dialog-title">新增客户</h2><button id="close-customer" class="icon-button" type="button" aria-label="关闭客户表单">×</button></div>
-        <div class="form-grid">
-          <label class="full-width">客户 / 公司名称<input name="name" maxlength="200" required></label>
-          <label>联系人<input name="contact" maxlength="2000"></label><label>联系人职位<input name="title" maxlength="2000"></label>
-          <label>邮箱<input name="email" type="email" maxlength="2000"></label><label>备用邮箱<input name="backup_email" type="email" maxlength="2000"></label>
-          <label>国家或地区<input name="country" maxlength="2000"></label><label>客户分级<select name="tier"><option value="">未分级</option><option>A</option><option>B</option><option>C</option></select></label>
-          <label>公司网站<input name="company_website" maxlength="2000"></label><label>LinkedIn<input name="linkedin_url" maxlength="2000"></label>
-          <label>电话<input name="phone" type="tel" maxlength="2000"></label><label>WhatsApp<input name="whatsapp" maxlength="2000"></label>
-          <label>微信<input name="wechat" maxlength="2000"></label><label>来源<input name="source" maxlength="2000" placeholder="展会 / 官网 / 手动录入"></label>
-          <label>买家类型<input name="buyer_type" maxlength="2000" placeholder="品牌商 / 分销商 / 代理商"></label><label>主营品类<input name="main_category" maxlength="2000"></label>
-          <label>匹配评分（0–5）<input name="match_score" type="number" min="0" max="5" step="1" value="0"></label>
-          <label class="full-width">客户备注<textarea name="note" rows="3" maxlength="20000"></textarea></label>
-          <label class="full-width">跟进建议<textarea name="follow_up_note" rows="2" maxlength="20000"></textarea></label>
-        </div>
-        <p id="customer-form-message" class="form-message" role="status" aria-live="polite"></p>
-        <div class="dialog-actions"><button id="cancel-customer" class="quiet-button" type="button">取消</button><button class="primary-button compact" type="submit">保存客户</button></div>
-      </form>
-    </dialog>
-    <dialog id="delete-dialog" aria-labelledby="delete-title"><form id="delete-form"><h2 id="delete-title">删除客户</h2><p id="delete-description"></p><p class="muted">删除后无法恢复，请确认已保留需要的信息。</p><p id="delete-message" class="form-message" role="status"></p><div class="dialog-actions"><button id="cancel-delete" class="quiet-button" type="button">取消</button><button class="danger-button" type="submit">确认删除</button></div></form></dialog>
-    <dialog id="import-dialog" aria-labelledby="import-title"><form id="import-form" class="business-form"><div class="dialog-heading"><h2 id="import-title">导入客户 CSV</h2><button id="close-import" class="icon-button" type="button" aria-label="关闭导入">×</button></div><p class="section-description">请选择 UTF-8 编码文件，每次最多 1000 行。表头至少包含 name；也可以先导出 CSV，用它作为模板。</p><label>CSV 文件<input id="import-file" type="file" accept=".csv,text/csv" required></label><p id="import-message" class="form-message" role="status" aria-live="polite"></p><div class="dialog-actions"><button class="primary-button compact" type="submit">开始导入</button></div></form></dialog>
-    <dialog id="delete-chat-dialog" aria-labelledby="delete-chat-title"><h2 id="delete-chat-title">删除这段对话？</h2><p class="muted">对话和消息将被删除，无法恢复。</p><div class="dialog-actions"><button id="cancel-delete-chat" class="quiet-button" type="button">取消</button><button id="confirm-delete-chat" class="danger-button" type="button">确认删除对话</button></div></dialog>
-    <dialog id="order-dialog" aria-labelledby="order-title"><form id="order-form" class="business-form"><div class="dialog-heading"><h2 id="order-title">新建订单</h2><button class="icon-button" data-close="order-dialog" type="button" aria-label="关闭订单">×</button></div><div class="form-grid"><label>关联客户<select id="order-customer" required></select></label><label>订单号<input name="order_no" maxlength="2000"></label><label>币种<select name="currency"><option>USD</option><option>EUR</option><option>CNY</option><option>GBP</option></select></label><label>交货日期<input name="delivery_date" type="date"></label><label class="full-width">付款条款<input name="payment_terms" maxlength="2000"></label></div><div class="item-caption"><span>商品明细 · 未填写数量或单价表示待谈</span><button id="add-order-item" type="button" class="text-button">＋ 添加商品</button></div><div id="order-items"></div><label>备注<textarea name="notes" rows="3" maxlength="20000"></textarea></label><p id="order-message" class="form-message" role="status"></p><div class="dialog-actions"><button class="quiet-button" data-close="order-dialog" type="button">取消</button><button type="submit" class="primary-button compact">保存订单</button></div></form></dialog>
-    <dialog id="library-dialog" aria-labelledby="library-title"><form id="library-form" class="business-form"><div class="dialog-heading"><h2 id="library-title">新建文档库</h2><button class="icon-button" data-close="library-dialog" type="button" aria-label="关闭文档库">×</button></div><label>文档库名称<input name="name" required maxlength="200"></label><label>说明<input name="description" maxlength="2000"></label><p id="library-message" class="form-message" role="status"></p><div class="dialog-actions"><button type="submit" class="primary-button compact">创建文档库</button></div></form></dialog>
-    <dialog id="text-dialog" aria-labelledby="text-title"><div class="dialog-heading"><h2 id="text-title">文档文字</h2><button class="icon-button" data-close="text-dialog" type="button" aria-label="关闭文档文字">×</button></div><p id="document-note" class="muted"></p><pre id="document-text" class="plain-preview"></pre></dialog>
-    <dialog id="template-dialog" aria-labelledby="template-title"><form id="template-form" class="business-form"><div class="dialog-heading"><h2 id="template-title">业务文案模板</h2><button class="icon-button" data-close="template-dialog" type="button" aria-label="关闭模板">×</button></div><label>模板名称<input name="name" required maxlength="200"></label><label>模板内容<textarea name="content" rows="10" maxlength="50000" required></textarea></label><p id="template-message" class="form-message" role="status"></p><div class="dialog-actions"><button type="submit" class="primary-button compact">保存模板</button></div></form></dialog>
-    <dialog id="research-report-dialog" aria-labelledby="research-report-title"><div class="dialog-heading"><h2 id="research-report-title">客户情报报告</h2><button class="icon-button" data-close="research-report-dialog" type="button" aria-label="关闭报告">×</button></div><p id="research-report-meta" class="muted"></p><div id="research-report-answer" class="report-answer"></div><h3>来源</h3><div id="research-sources" class="source-list"></div></dialog>
-    <dialog id="automation-dialog" aria-labelledby="automation-title"><form id="automation-form" class="business-form"><div class="dialog-heading"><h2 id="automation-title">新建自动化</h2><button class="icon-button" type="button" data-close="automation-dialog" aria-label="关闭自动化">×</button></div><div class="form-grid"><label class="full-width">任务名称<input name="name" required maxlength="200"></label><label class="full-width">执行指令<textarea name="prompt" rows="5" maxlength="20000" required placeholder="例如：根据公司资料和客户列表，列出今天应优先跟进的客户并说明原因。"></textarea></label><label>业务技能<select name="skill_id" id="automation-skill" required></select></label><label>频率<select name="frequency"><option value="daily">每天</option><option value="weekdays">工作日</option><option value="weekly">每周</option></select></label><label>执行时间<input name="time_of_day" type="time" value="09:00" required></label><label>每周执行日<select name="weekday"><option value="0">周一</option><option value="1">周二</option><option value="2">周三</option><option value="3">周四</option><option value="4">周五</option><option value="5">周六</option><option value="6">周日</option></select></label><label class="checkbox-label"><input name="enabled" type="checkbox" checked>启用此任务</label></div><p id="automation-message" class="form-message" role="status"></p><div class="dialog-actions"><button type="button" class="quiet-button" data-close="automation-dialog">取消</button><button type="submit" class="primary-button compact">保存任务</button></div></form></dialog>
-    <dialog id="send-mail-dialog" aria-labelledby="send-mail-title"><div class="dialog-heading"><h2 id="send-mail-title">确认发送邮件</h2><button class="icon-button" type="button" data-close="send-mail-dialog" aria-label="关闭发送确认">×</button></div><p id="send-mail-summary" class="muted"></p><pre id="send-mail-preview" class="plain-preview"></pre><p id="send-mail-error" class="form-message" role="status"></p><div class="dialog-actions"><button type="button" class="quiet-button" data-close="send-mail-dialog">返回修改</button><button id="confirm-send-mail" type="button" class="primary-button compact">确认发送</button></div></dialog>
-  </body>
+        <form id="login-form" class="auth-form">
+          <label for="login-email">邮箱</label>
+          <input id="login-email" name="email" type="email" autocomplete="email" maxlength="254" required>
+          <label for="login-password">密码</label>
+          <input id="login-password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required>
+          <button class="primary-button" type="submit">登录</button>
+        </form>
+        <form id="register-form" class="auth-form" hidden>
+          <label for="register-email">邮箱</label>
+          <input id="register-email" name="email" type="email" autocomplete="email" maxlength="254" required>
+          <label for="register-password">密码</label>
+          <input id="register-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+          <button class="primary-button" type="submit">创建账户</button>
+        </form>
+        <p id="status-message" class="status-message" role="status" aria-live="polite"></p>
+      </div>
+      <footer class="auth-footer">原项目业务流程 · 无试用激活限制</footer>
+    </section>
+  </main>
+</body>
 </html>

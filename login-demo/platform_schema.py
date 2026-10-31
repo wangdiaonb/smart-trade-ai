@@ -47,25 +47,4 @@ TABLES = [
     "CREATE INDEX IF NOT EXISTS idx_research_workspace ON research_reports(workspace_id,id)",
     "CREATE INDEX IF NOT EXISTS idx_automation_due ON automations(enabled,next_run_at)",
     "CREATE INDEX IF NOT EXISTS idx_automation_runs_workspace ON automation_runs(workspace_id,id)",
-    """CREATE TABLE IF NOT EXISTS smtp_settings (
-        workspace_id INTEGER PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
-        host TEXT NOT NULL,
-        port INTEGER NOT NULL,
-        security TEXT NOT NULL CHECK(security IN ('starttls','ssl','none')),
-        username TEXT NOT NULL DEFAULT '',
-        from_email TEXT NOT NULL,
-        password_encrypted TEXT NOT NULL DEFAULT ''
-    )""",
-    """CREATE TABLE IF NOT EXISTS communications (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-        customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
-        recipient TEXT NOT NULL,
-        subject TEXT NOT NULL,
-        status TEXT NOT NULL CHECK(status IN ('sent','error')),
-        error TEXT NOT NULL DEFAULT '',
-        created_ts REAL NOT NULL,
-        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-    )""",
-    "CREATE INDEX IF NOT EXISTS idx_communications_workspace ON communications(workspace_id,created_ts)",
 ]

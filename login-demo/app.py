@@ -18,8 +18,6 @@ from orders_api import router as orders_router
 from documents_api import router as documents_router
 from research_api import router as research_router
 from automation_api import router as automation_router, scheduler_loop
-from dashboard_api import router as dashboard_router
-from communications_api import router as communications_router
 from database import connection
 from tenancy import TenantContext, require_tenant
 from secret_store import SecretStore
@@ -27,6 +25,7 @@ from skill_catalog import SkillCatalog
 
 APP_DIR = Path(__file__).resolve().parent
 STATIC_DIR = APP_DIR / "static"
+ORIGINAL_STATIC_DIR = APP_DIR.parent / "static"
 DEFAULT_DB_PATH = APP_DIR / "data" / "accounts.sqlite3"
 
 
@@ -80,10 +79,9 @@ def create_app(
     app.include_router(documents_router)
     app.include_router(research_router)
     app.include_router(automation_router)
-    app.include_router(dashboard_router)
-    app.include_router(communications_router)
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    app.mount("/original-static", StaticFiles(directory=ORIGINAL_STATIC_DIR), name="original-static")
     app.add_middleware(
         SessionMiddleware,
         secret_key=secret_key or os.getenv("LOGIN_DEMO_SECRET") or secrets.token_urlsafe(32),
@@ -95,6 +93,10 @@ def create_app(
     @app.get("/")
     def index() -> FileResponse:
         return FileResponse(STATIC_DIR / "index.html", headers={'Cache-Control': 'no-store'})
+
+    @app.get("/trade", include_in_schema=False)
+    def trade_workspace() -> FileResponse:
+        return FileResponse(STATIC_DIR / "workspace.html", headers={'Cache-Control': 'no-store'})
 
     @app.post("/api/register", status_code=status.HTTP_201_CREATED)
     def register(credentials: Credentials, request: Request) -> dict[str, object]:

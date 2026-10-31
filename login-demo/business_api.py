@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from business import CUSTOMER_FIELDS, WorkspaceStore
 from business_models import CompanyUpdate, CsvImport, CustomerCreate, CustomerUpdate
+from database import connection
 from tenancy import TenantContext, require_tenant
 
 router = APIRouter(prefix="/api", tags=["workspace business"])
@@ -112,5 +113,57 @@ def delete_customer(customer_id: int, store: Store):
         raise HTTPException(409, str(exc)) from exc
     if not deleted:
         raise HTTPException(404, "Record not found")
+    return {"ok": True}
+
+
+@router.get("/customers/{customer_id}/libraries")
+def customer_libraries(customer_id: int, store: Store):
+    found(store.get_customer(customer_id))
+    with connection(store.path) as conn:
+        rows = conn.execute(
+            """
+            SELECT libraries.id, libraries.name, libraries.description
+            FROM customer_libraries links
+            JOIN libraries
+              ON libraries.id = links.library_id
+             AND libraries.workspace_id = links.workspace_id
+            WHERE links.customer_id = ? AND links.workspace_id = ?
+            ORDER BY libraries.id DESC
+            """,
+            (customer_id, store.workspace_id),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+@router.post("/customers/{customer_id}/libraries/{library_id}")
+def link_customer_library(customer_id: int, library_id: int, store: Store):
+    found(store.get_customer(customer_id))
+    with connection(store.path) as conn:
+        if conn.execute(
+            "SELECT 1 FROM libraries WHERE id = ? AND workspace_id = ?",
+            (library_id, store.workspace_id),
+        ).fetchone() is None:
+            raise HTTPException(404, "Library not found")
+        conn.execute(
+            """
+            INSERT INTO customer_libraries(workspace_id, customer_id, library_id)
+            VALUES (?, ?, ?)
+            ON CONFLICT(customer_id, library_id) DO NOTHING
+            """,
+            (store.workspace_id, customer_id, library_id),
+        )
+    return {"ok": True}
+
+
+@router.delete("/customers/{customer_id}/libraries/{library_id}")
+def unlink_customer_library(customer_id: int, library_id: int, store: Store):
+    found(store.get_customer(customer_id))
+    with connection(store.path) as conn:
+        cursor = conn.execute(
+            "DELETE FROM customer_libraries WHERE customer_id = ? AND library_id = ? AND workspace_id = ?",
+            (customer_id, library_id, store.workspace_id),
+        )
+    if cursor.rowcount == 0:
+        raise HTTPException(404, "Library link not found")
     return {"ok": True}
 

@@ -129,7 +129,7 @@ def test_due_automation_runs_once_and_records_failure(app_and_clients):
     assert result['started']==0
 
 
-@pytest.mark.parametrize('path',['/api/research/reports','/api/research/settings','/api/automations','/api/automation-runs','/api/dashboard'])
+@pytest.mark.parametrize('path',['/api/research/reports','/api/research/settings','/api/automations','/api/automation-runs'])
 def test_platform_endpoints_require_login(tmp_path,path):
     client=TestClient(create_app(tmp_path/'auth.sqlite3','test-secret'))
     assert client.get(path).status_code==401

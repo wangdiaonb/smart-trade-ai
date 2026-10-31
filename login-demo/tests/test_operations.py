@@ -110,6 +110,17 @@ def test_templates_are_owned_and_rendered_as_plain_text(clients):
     assert first.delete(f'/api/templates/{tid}').status_code==200
 
 
+def test_customer_library_associations_are_scoped(clients):
+    first,second=clients
+    customer=first.post('/api/customers',json={'name':'Linked Buyer'}).json()
+    library=first.post('/api/libraries',json={'name':'Buyer documents'}).json()
+    assert first.post(f'/api/customers/{customer["id"]}/libraries/{library["id"]}').status_code==200
+    assert first.get(f'/api/customers/{customer["id"]}/libraries').json()==[{'id':library['id'],'name':'Buyer documents','description':''}]
+    assert second.get(f'/api/customers/{customer["id"]}/libraries').status_code==404
+    assert first.delete(f'/api/customers/{customer["id"]}/libraries/{library["id"]}').status_code==200
+    assert first.get(f'/api/customers/{customer["id"]}/libraries').json()==[]
+
+
 def test_operations_require_auth(tmp_path):
     client=TestClient(create_app(tmp_path/'db.sqlite3','test-secret'))
     for path in ['/api/orders','/api/libraries','/api/templates','/api/documents/1/download']:

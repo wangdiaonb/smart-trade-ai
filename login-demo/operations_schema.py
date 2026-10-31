@@ -43,4 +43,11 @@ TABLES = [
     )""",
     "CREATE INDEX IF NOT EXISTS idx_orders_workspace ON orders(workspace_id,id)",
     "CREATE INDEX IF NOT EXISTS idx_documents_workspace ON documents(workspace_id,library_id,deleted)",
+    """CREATE TABLE IF NOT EXISTS customer_libraries (
+        workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+        customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+        PRIMARY KEY(customer_id,library_id)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_customer_libraries_workspace ON customer_libraries(workspace_id,customer_id)",
 ]

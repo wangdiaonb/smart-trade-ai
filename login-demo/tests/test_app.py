@@ -63,7 +63,6 @@ def test_root_serves_login_ui(tmp_path):
     assert response.status_code == 200
     assert 'id="login-form"' in response.text
     assert 'id="register-form"' in response.text
-    assert 'id="workspace"' in response.text
     assert 'id="register-form" class="auth-form" hidden' in response.text
     assert 'id="register-email" name="email" type="email"' in response.text
     assert 'id="register-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required' in response.text
@@ -79,4 +78,17 @@ def test_static_assets_are_served(tmp_path):
     assert css.status_code == 200
     assert "--accent" in css.text
     assert javascript.status_code == 200
-    assert "restoreSession" in javascript.text
+    assert "location.replace('/trade')" in javascript.text
+
+
+def test_workspace_uses_original_business_navigation_without_activation_or_extra_email_page(tmp_path):
+    client = TestClient(create_app(tmp_path / "accounts.sqlite3", "test-secret"))
+
+    response = client.get("/trade")
+
+    assert response.status_code == 200
+    for label in ["今日简报", "客户开发", "网站诊断", "社媒营销", "LinkedIn", "海关数据", "客户管理", "文档库", "文档生成", "客户背调", "定时任务", "对话记录"]:
+        assert label in response.text
+    assert "邮件沟通" not in response.text
+    assert "30 天试用" not in response.text
+    assert "激活码" not in response.text
