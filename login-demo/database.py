@@ -4,6 +4,8 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
+from operations_schema import TABLES
+
 
 @contextmanager
 def connection(path: Path):
@@ -148,6 +150,8 @@ def migrate(path: Path) -> None:
                 content TEXT NOT NULL DEFAULT ''
             )
         """)
+        for statement in TABLES:
+            conn.execute(statement)
         for row in conn.execute("""
             SELECT id FROM users
             WHERE NOT EXISTS (SELECT 1 FROM workspaces WHERE owner_user_id = users.id)

@@ -63,6 +63,8 @@
               <button type="button" data-view="chat">AI 工作台</button>
               <button type="button" data-view="customers" aria-current="page">客户管理 <span id="customer-count">0</span></button>
               <button type="button" data-view="company">公司资料</button>
+              <button type="button" data-view="orders">订单与报价</button>
+              <button type="button" data-view="documents">文档与模板</button>
               <button type="button" data-view="model">模型与记忆</button>
             </nav>
             <div class="sidebar-account"><span class="identity-dot" aria-hidden="true"></span><span id="workspace-email" class="identity-email"></span></div>
@@ -75,11 +77,22 @@
                 <aside class="conversation-panel"><div class="conversation-caption">历史对话</div><div id="conversation-list"></div></aside>
                 <div class="chat-main">
                   <div class="chat-options"><label>工作模式<select id="chat-skill"><option value="general">外贸助手</option></select></label><label>关联客户<select id="chat-customer"><option value="">不关联客户</option></select></label><button id="delete-conversation" type="button" class="text-button" disabled>删除对话</button></div>
+                  <label class="chat-document-label">本轮参考文档<select id="chat-document"><option value="">不附加文档</option></select></label>
                   <div id="chat-messages" class="chat-messages" aria-live="polite"><div class="chat-welcome"><span aria-hidden="true">✳</span><h2>今天先处理哪件事？</h2><p>撰写开发信、整理客户需求，或规划下一次跟进。</p></div></div>
                   <form id="chat-form"><label class="sr-only" for="chat-input">输入业务问题</label><textarea id="chat-input" rows="3" maxlength="20000" required placeholder="描述你的业务问题…"></textarea><div class="chat-composer-footer"><span id="chat-model-label">请先配置模型</span><div><button id="stop-chat" type="button" class="quiet-button" hidden>停止生成</button><button id="send-chat" class="primary-button compact" type="submit">发送</button></div></div></form>
                   <p id="chat-message" class="form-message" role="status" aria-live="polite"></p>
                 </div>
               </div>
+            </section>
+            <section id="orders-view" aria-labelledby="orders-title" hidden>
+              <div class="section-heading"><div><p class="eyebrow">业务进度</p><h1 id="orders-title">订单与报价</h1><p class="section-description">多商品订单、状态跟踪与可打印报价单。</p></div><button id="new-order" class="primary-button compact" type="button">＋ 新建订单</button></div>
+              <div id="orders-list" class="record-list"></div>
+            </section>
+            <section id="documents-view" aria-labelledby="documents-title" hidden>
+              <div class="section-heading"><div><p class="eyebrow">公司知识资料</p><h1 id="documents-title">文档与模板</h1><p class="section-description">存放产品资料和图纸，维护常用业务文案。</p></div><button id="new-library" type="button" class="quiet-button">＋ 新建文档库</button></div>
+              <form id="upload-form" class="upload-toolbar"><label>选择文档库<select id="library-select" required></select></label><label>选择文件（最多 12 MB）<input id="document-file" type="file" accept=".txt,.md,.csv,.pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp" required></label><button type="submit" class="primary-button compact">上传文件</button></form>
+              <p id="operations-message" class="form-message" role="status" aria-live="polite"></p><div id="documents-list" class="record-list"></div>
+              <div class="workspace-rule"></div><div class="section-heading"><div><h2 class="subsection-title">业务文案模板</h2><p class="section-description">支持 {{company}}、{{customer}}、{{products}}、{{contact}} 文字占位符。</p></div><button id="new-template" type="button" class="quiet-button">＋ 新建模板</button></div><div id="templates-list" class="record-list"></div>
             </section>
             <section id="model-view" aria-labelledby="model-title" hidden>
               <p class="eyebrow">工作空间设置</p><h1 id="model-title">模型与记忆</h1><p class="section-description">每个账号独立配置。发送问题时，会将当前公司资料、关联客户和记忆备注提交给所选模型服务。</p>
@@ -156,5 +169,9 @@
     <dialog id="delete-dialog" aria-labelledby="delete-title"><form id="delete-form"><h2 id="delete-title">删除客户</h2><p id="delete-description"></p><p class="muted">删除后无法恢复，请确认已保留需要的信息。</p><p id="delete-message" class="form-message" role="status"></p><div class="dialog-actions"><button id="cancel-delete" class="quiet-button" type="button">取消</button><button class="danger-button" type="submit">确认删除</button></div></form></dialog>
     <dialog id="import-dialog" aria-labelledby="import-title"><form id="import-form" class="business-form"><div class="dialog-heading"><h2 id="import-title">导入客户 CSV</h2><button id="close-import" class="icon-button" type="button" aria-label="关闭导入">×</button></div><p class="section-description">请选择 UTF-8 编码文件，每次最多 1000 行。表头至少包含 name；也可以先导出 CSV，用它作为模板。</p><label>CSV 文件<input id="import-file" type="file" accept=".csv,text/csv" required></label><p id="import-message" class="form-message" role="status" aria-live="polite"></p><div class="dialog-actions"><button class="primary-button compact" type="submit">开始导入</button></div></form></dialog>
     <dialog id="delete-chat-dialog" aria-labelledby="delete-chat-title"><h2 id="delete-chat-title">删除这段对话？</h2><p class="muted">对话和消息将被删除，无法恢复。</p><div class="dialog-actions"><button id="cancel-delete-chat" class="quiet-button" type="button">取消</button><button id="confirm-delete-chat" class="danger-button" type="button">确认删除对话</button></div></dialog>
+    <dialog id="order-dialog" aria-labelledby="order-title"><form id="order-form" class="business-form"><div class="dialog-heading"><h2 id="order-title">新建订单</h2><button class="icon-button" data-close="order-dialog" type="button" aria-label="关闭订单">×</button></div><div class="form-grid"><label>关联客户<select id="order-customer" required></select></label><label>订单号<input name="order_no" maxlength="2000"></label><label>币种<select name="currency"><option>USD</option><option>EUR</option><option>CNY</option><option>GBP</option></select></label><label>交货日期<input name="delivery_date" type="date"></label><label class="full-width">付款条款<input name="payment_terms" maxlength="2000"></label></div><div class="item-caption"><span>商品明细 · 未填写数量或单价表示待谈</span><button id="add-order-item" type="button" class="text-button">＋ 添加商品</button></div><div id="order-items"></div><label>备注<textarea name="notes" rows="3" maxlength="20000"></textarea></label><p id="order-message" class="form-message" role="status"></p><div class="dialog-actions"><button class="quiet-button" data-close="order-dialog" type="button">取消</button><button type="submit" class="primary-button compact">保存订单</button></div></form></dialog>
+    <dialog id="library-dialog" aria-labelledby="library-title"><form id="library-form" class="business-form"><div class="dialog-heading"><h2 id="library-title">新建文档库</h2><button class="icon-button" data-close="library-dialog" type="button" aria-label="关闭文档库">×</button></div><label>文档库名称<input name="name" required maxlength="200"></label><label>说明<input name="description" maxlength="2000"></label><p id="library-message" class="form-message" role="status"></p><div class="dialog-actions"><button type="submit" class="primary-button compact">创建文档库</button></div></form></dialog>
+    <dialog id="text-dialog" aria-labelledby="text-title"><div class="dialog-heading"><h2 id="text-title">文档文字</h2><button class="icon-button" data-close="text-dialog" type="button" aria-label="关闭文档文字">×</button></div><p id="document-note" class="muted"></p><pre id="document-text" class="plain-preview"></pre></dialog>
+    <dialog id="template-dialog" aria-labelledby="template-title"><form id="template-form" class="business-form"><div class="dialog-heading"><h2 id="template-title">业务文案模板</h2><button class="icon-button" data-close="template-dialog" type="button" aria-label="关闭模板">×</button></div><label>模板名称<input name="name" required maxlength="200"></label><label>模板内容<textarea name="content" rows="10" maxlength="50000" required></textarea></label><p id="template-message" class="form-message" role="status"></p><div class="dialog-actions"><button type="submit" class="primary-button compact">保存模板</button></div></form></dialog>
   </body>
 </html>

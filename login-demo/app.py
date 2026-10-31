@@ -12,6 +12,8 @@ from starlette.middleware.sessions import SessionMiddleware
 from auth import authenticate_user, init_db, register_user
 from business_api import router as business_router
 from chat_api import router as chat_router
+from orders_api import router as orders_router
+from documents_api import router as documents_router
 from database import connection
 from tenancy import TenantContext, require_tenant
 from secret_store import SecretStore
@@ -43,6 +45,8 @@ def create_app(db_path: Path | None = None, secret_key: str | None = None, *, mo
     app.state.secret_store = SecretStore(resolved_db_path.parent / 'model-encryption.key')
     app.include_router(business_router)
     app.include_router(chat_router)
+    app.include_router(orders_router)
+    app.include_router(documents_router)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     app.add_middleware(
         SessionMiddleware,

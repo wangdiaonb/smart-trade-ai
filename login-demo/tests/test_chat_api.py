@@ -122,6 +122,19 @@ def test_second_turn_includes_history(setup):
     assert messages[-1]["content"] == "第二轮"
 
 
+def test_chat_document_context_requires_workspace_ownership(setup):
+    first,second,_,captured=setup
+    configure(first);configure(second)
+    lib=first.post('/api/libraries',json={'name':'Product specs'}).json()['id']
+    doc=first.post(f'/api/libraries/{lib}/files',files={'file':('spec.txt',b'Unique-pump-spec-42','text/plain')}).json()
+    cid=conversation(first)
+    response=first.post(f'/api/conversations/{cid}/stream',json={'content':'Read specs','document_ids':[doc['id']]})
+    assert 'event: done' in response.text
+    assert 'Unique-pump-spec-42' in json.dumps(captured[-1])
+    second_id=conversation(second)
+    assert second.post(f'/api/conversations/{second_id}/stream',json={'content':'steal','document_ids':[doc['id']]}).status_code==404
+
+
 @pytest.mark.parametrize('status,body', [(401, 'fake-key-for-tests-only'), (200, 'data: {"choices":[{"delta":{"content":"partial"}}]}\n\n')])
 def test_upstream_error_or_truncated_stream_is_not_reported_as_success(tmp_path, status, body):
     app = create_app(tmp_path / "db.sqlite3", "test-secret", model_transport=httpx.MockTransport(lambda request: httpx.Response(status, content=body)))

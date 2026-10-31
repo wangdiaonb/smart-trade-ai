@@ -1,5 +1,6 @@
 import {api} from './api.js';
 import {startChat, stopChat} from './chat.js';
+import {startOperations, stopOperations} from './operations.js';
 
 const el = id => document.getElementById(id);
 const companyForm = el('company-form');
@@ -126,6 +127,7 @@ function action(button, task, errorTarget = null) {
 }
 
 export function stopBusiness() {
+  stopOperations();
   stopChat();
   active = false;
   epoch++;
@@ -145,7 +147,7 @@ export function stopBusiness() {
 }
 
 export async function startBusiness() {
-  stopBusiness(); active = true; controller = new AbortController();
+  stopBusiness(); active = true; controller = new AbortController(); startOperations();
   const owner = epoch;
   selectView('chat');
   const company = await api('/api/company', {signal: controller.signal});
@@ -157,10 +159,8 @@ export async function startBusiness() {
 }
 
 function selectView(view) {
-  el('customers-view').hidden = view !== 'customers';
-  el('company-view').hidden = view !== 'company';
-  el('chat-view').hidden = view !== 'chat';
-  el('model-view').hidden = view !== 'model';
+  ['customers','company','chat','model','orders','documents'].forEach(name => { el(`${name}-view`).hidden = view !== name; });
+  window.dispatchEvent(new CustomEvent('workspace-view',{detail:view}));
   document.querySelectorAll('[data-view]').forEach(button => {
     if (button.dataset.view === view) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');

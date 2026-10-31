@@ -94,7 +94,20 @@ async function loadSettings() {
   el('chat-customer').replaceChildren(unbound, ...customers.items.map(customer => {
     const option = document.createElement('option'); option.value=String(customer.id); option.textContent=customer.name; return option;
   }));
+  await refreshDocuments();
 }
+
+async function refreshDocuments(){
+  const owner=epoch;
+  const libraries=await api('/api/libraries',{signal:lifetime.signal});
+  const groups=await Promise.all(libraries.map(lib=>api(`/api/libraries/${lib.id}/files`,{signal:lifetime.signal})));
+  if(!active||owner!==epoch)return;
+  const previous=el('chat-document').value;
+  const none=document.createElement('option');none.value='';none.textContent='不附加文档';
+  el('chat-document').replaceChildren(none,...groups.flat().map(doc=>{const option=document.createElement('option');option.value=String(doc.id);option.textContent=doc.filename;return option;}));
+  el('chat-document').value=[...el('chat-document').options].some(option=>option.value===previous)?previous:'';
+}
+window.addEventListener('workspace-view',event=>{if(active&&event.detail==='chat')refreshDocuments().catch(showError);});
 
 export async function startChat() {
   stopChat(); active=true; lifetime=new AbortController();
@@ -109,7 +122,7 @@ export function stopChat() {
   el('model-form').reset(); el('memory-form').reset(); el('chat-form').reset();
   ['chat-message','model-message','memory-message'].forEach(id => { el(id).textContent=''; });
   el('chat-model-label').textContent='请先配置模型'; el('model-key-state').textContent='尚未配置 API Key';
-  el('chat-customer').replaceChildren(); currentId=null; setBusy(false);
+  el('chat-customer').replaceChildren();el('chat-document').replaceChildren(); currentId=null; setBusy(false);
 }
 
 el('new-conversation').addEventListener('click', () => { newConversation(); loadThreads().catch(showError); });
@@ -131,7 +144,8 @@ el('chat-form').addEventListener('submit', async event => {
     }
     streamId=currentId;
     addMessage('user',content); reply=addMessage('assistant','', 'streaming');
-    const response=await api(`/api/conversations/${streamId}/stream`, {method:'POST',body:{content,skill_id:el('chat-skill').value},raw:true,signal:streamController.signal});
+    const documentId=el('chat-document').value;
+    const response=await api(`/api/conversations/${streamId}/stream`, {method:'POST',body:{content,skill_id:el('chat-skill').value,document_ids:documentId?[Number(documentId)]:[]},raw:true,signal:streamController.signal});
     el('chat-input').value='';
     await readSSE(response, (type,data) => {
       if (!active || owner !== epoch) return;

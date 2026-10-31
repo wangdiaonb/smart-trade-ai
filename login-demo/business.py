@@ -126,6 +126,10 @@ class WorkspaceStore:
 
     def delete_customer(self, customer_id: int) -> bool:
         with connection(self.path) as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            has_orders = conn.execute('SELECT 1 FROM orders WHERE customer_id = ? AND workspace_id = ? LIMIT 1', (customer_id, self.workspace_id)).fetchone()
+            if has_orders:
+                raise ValueError('该客户仍有关联订单，请先处理订单，不能直接删除客户。')
             cursor = conn.execute("DELETE FROM customers WHERE id = ? AND workspace_id = ?", (customer_id, self.workspace_id))
         return cursor.rowcount > 0
 

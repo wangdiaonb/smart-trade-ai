@@ -106,7 +106,11 @@ def update_customer(customer_id: int, payload: CustomerUpdate, store: Store):
 
 @router.delete("/customers/{customer_id}")
 def delete_customer(customer_id: int, store: Store):
-    if not store.delete_customer(customer_id):
+    try:
+        deleted = store.delete_customer(customer_id)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    if not deleted:
         raise HTTPException(404, "Record not found")
     return {"ok": True}
 

@@ -17,7 +17,7 @@ export async function api(path, options = {}) {
   try {
     response = await fetch(path, {
       credentials: 'same-origin', cache: 'no-store', ...rest,
-      ...(body === undefined ? {} : {headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)}),
+      ...(body === undefined ? {} : body instanceof FormData ? {body} : {headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)}),
     });
   } catch (error) {
     if (error.name === 'AbortError') throw error;

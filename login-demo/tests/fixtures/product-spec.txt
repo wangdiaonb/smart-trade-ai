@@ -1,0 +1,5 @@
+Browser validation sample product
+Product: stainless steel water pump
+Material: SS304
+Rated power: 1.5 kW
+This is disposable test data, not a real product certification.
