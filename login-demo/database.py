@@ -96,6 +96,58 @@ def migrate(path: Path) -> None:
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_customers_workspace ON customers(workspace_id, id)")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS model_settings (
+                workspace_id INTEGER PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
+                provider TEXT NOT NULL DEFAULT 'deepseek',
+                model TEXT NOT NULL DEFAULT 'deepseek-chat',
+                api_key_encrypted TEXT NOT NULL DEFAULT ''
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS conversations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+                customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+                title TEXT NOT NULL DEFAULT '新对话',
+                busy_token TEXT NOT NULL DEFAULT '',
+                busy_until REAL NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+                updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+                UNIQUE(id, workspace_id)
+            )
+        """)
+        conn.execute("""
+            CREATE TRIGGER IF NOT EXISTS conversation_customer_workspace
+            BEFORE INSERT ON conversations
+            WHEN NEW.customer_id IS NOT NULL AND NOT EXISTS (
+                SELECT 1 FROM customers WHERE id = NEW.customer_id AND workspace_id = NEW.workspace_id
+            )
+            BEGIN SELECT RAISE(ABORT, 'Customer belongs to another workspace'); END
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+                conversation_id INTEGER NOT NULL,
+                turn_token TEXT NOT NULL,
+                role TEXT NOT NULL CHECK(role IN ('user','assistant')),
+                content TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'complete' CHECK(status IN ('complete','streaming','error','cancelled')),
+                skill_id TEXT NOT NULL DEFAULT 'general',
+                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+                FOREIGN KEY(conversation_id,workspace_id) REFERENCES conversations(id,workspace_id) ON DELETE CASCADE,
+                UNIQUE(turn_token,role)
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_conversations_workspace ON conversations(workspace_id, updated_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(workspace_id, conversation_id, id)")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS workspace_memory (
+                workspace_id INTEGER PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
+                content TEXT NOT NULL DEFAULT ''
+            )
+        """)
         for row in conn.execute("""
             SELECT id FROM users
             WHERE NOT EXISTS (SELECT 1 FROM workspaces WHERE owner_user_id = users.id)

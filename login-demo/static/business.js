@@ -1,4 +1,5 @@
 import {api} from './api.js';
+import {startChat, stopChat} from './chat.js';
 
 const el = id => document.getElementById(id);
 const companyForm = el('company-form');
@@ -125,6 +126,7 @@ function action(button, task, errorTarget = null) {
 }
 
 export function stopBusiness() {
+  stopChat();
   active = false;
   epoch++;
   controller?.abort();
@@ -145,17 +147,20 @@ export function stopBusiness() {
 export async function startBusiness() {
   stopBusiness(); active = true; controller = new AbortController();
   const owner = epoch;
-  selectView('customers');
+  selectView('chat');
   const company = await api('/api/company', {signal: controller.signal});
   if (!active || owner !== epoch) return;
   fillForm(companyForm, company);
   el('space-name').textContent = company.name;
   await loadCustomers();
+  if (active && owner === epoch) await startChat();
 }
 
 function selectView(view) {
   el('customers-view').hidden = view !== 'customers';
   el('company-view').hidden = view !== 'company';
+  el('chat-view').hidden = view !== 'chat';
+  el('model-view').hidden = view !== 'model';
   document.querySelectorAll('[data-view]').forEach(button => {
     if (button.dataset.view === view) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');

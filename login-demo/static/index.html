@@ -47,7 +47,7 @@
         <footer class="auth-footer">本地演示</footer>
       </section>
 
-      <section id="workspace" class="workspace" aria-labelledby="workspace-title" hidden>
+      <section id="workspace" class="workspace" aria-label="外贸工作台" hidden>
         <header class="workspace-header">
           <a class="workspace-brand" href="/" aria-label="Workroom 首页">
             <span class="brand-mark" aria-hidden="true">W</span>
@@ -60,13 +60,34 @@
             <div class="space-label">公司空间</div>
             <strong id="space-name">正在加载…</strong>
             <nav class="business-nav" aria-label="工作台导航">
+              <button type="button" data-view="chat">AI 工作台</button>
               <button type="button" data-view="customers" aria-current="page">客户管理 <span id="customer-count">0</span></button>
               <button type="button" data-view="company">公司资料</button>
+              <button type="button" data-view="model">模型与记忆</button>
             </nav>
             <div class="sidebar-account"><span class="identity-dot" aria-hidden="true"></span><span id="workspace-email" class="identity-email"></span></div>
           </aside>
           <div class="business-content">
             <p id="business-message" class="business-message" role="status" aria-live="polite"></p>
+            <section id="chat-view" aria-labelledby="chat-title" hidden>
+              <div class="section-heading"><div><p class="eyebrow">业务助手</p><h1 id="chat-title">AI 工作台</h1><p class="section-description">结合公司、客户资料和历史对话处理业务。</p></div><button id="new-conversation" type="button" class="quiet-button">＋ 新对话</button></div>
+              <div class="chat-layout">
+                <aside class="conversation-panel"><div class="conversation-caption">历史对话</div><div id="conversation-list"></div></aside>
+                <div class="chat-main">
+                  <div class="chat-options"><label>工作模式<select id="chat-skill"><option value="general">外贸助手</option></select></label><label>关联客户<select id="chat-customer"><option value="">不关联客户</option></select></label><button id="delete-conversation" type="button" class="text-button" disabled>删除对话</button></div>
+                  <div id="chat-messages" class="chat-messages" aria-live="polite"><div class="chat-welcome"><span aria-hidden="true">✳</span><h2>今天先处理哪件事？</h2><p>撰写开发信、整理客户需求，或规划下一次跟进。</p></div></div>
+                  <form id="chat-form"><label class="sr-only" for="chat-input">输入业务问题</label><textarea id="chat-input" rows="3" maxlength="20000" required placeholder="描述你的业务问题…"></textarea><div class="chat-composer-footer"><span id="chat-model-label">请先配置模型</span><div><button id="stop-chat" type="button" class="quiet-button" hidden>停止生成</button><button id="send-chat" class="primary-button compact" type="submit">发送</button></div></div></form>
+                  <p id="chat-message" class="form-message" role="status" aria-live="polite"></p>
+                </div>
+              </div>
+            </section>
+            <section id="model-view" aria-labelledby="model-title" hidden>
+              <p class="eyebrow">工作空间设置</p><h1 id="model-title">模型与记忆</h1><p class="section-description">每个账号独立配置。发送问题时，会将当前公司资料、关联客户和记忆备注提交给所选模型服务。</p>
+              <form id="model-form" class="business-form"><div class="form-grid"><label>模型服务<select name="provider"><option value="deepseek">DeepSeek</option></select></label><label>模型名称<input name="model" value="deepseek-chat" required maxlength="200"></label><label class="full-width">API Key<input name="api_key" type="password" autocomplete="off" maxlength="1000" placeholder="填写新密钥；留空保留已保存的密钥"></label></div><div class="settings-actions"><button class="primary-button compact" type="submit">保存模型设置</button><button id="clear-model-key" class="text-button" type="button">清除已保存的密钥</button></div><p id="model-key-state" class="section-description">尚未配置 API Key</p><p id="model-message" class="form-message" role="status" aria-live="polite"></p></form>
+              <div class="workspace-rule"></div>
+              <h2 class="subsection-title">业务记忆备注</h2><p class="section-description">保存公司业务偏好和长期约定，后续对话会参考。请勿填写密码或密钥。</p>
+              <form id="memory-form" class="business-form"><label for="memory-content" class="sr-only">业务记忆备注</label><textarea id="memory-content" name="content" rows="6" maxlength="20000" placeholder="例如：开发信保持简短；报价默认使用 USD；重点开发欧洲分销商。"></textarea><div class="settings-actions"><button class="primary-button compact" type="submit">保存记忆备注</button></div><p id="memory-message" class="form-message" role="status" aria-live="polite"></p></form>
+            </section>
             <section id="customers-view" aria-labelledby="workspace-title">
               <div class="section-heading">
                 <div><p class="eyebrow">客户关系管理</p><h1 id="workspace-title">客户管理</h1><p class="section-description">维护客户资料，让每一次跟进都有据可查。</p></div>
@@ -134,5 +155,6 @@
     </dialog>
     <dialog id="delete-dialog" aria-labelledby="delete-title"><form id="delete-form"><h2 id="delete-title">删除客户</h2><p id="delete-description"></p><p class="muted">删除后无法恢复，请确认已保留需要的信息。</p><p id="delete-message" class="form-message" role="status"></p><div class="dialog-actions"><button id="cancel-delete" class="quiet-button" type="button">取消</button><button class="danger-button" type="submit">确认删除</button></div></form></dialog>
     <dialog id="import-dialog" aria-labelledby="import-title"><form id="import-form" class="business-form"><div class="dialog-heading"><h2 id="import-title">导入客户 CSV</h2><button id="close-import" class="icon-button" type="button" aria-label="关闭导入">×</button></div><p class="section-description">请选择 UTF-8 编码文件，每次最多 1000 行。表头至少包含 name；也可以先导出 CSV，用它作为模板。</p><label>CSV 文件<input id="import-file" type="file" accept=".csv,text/csv" required></label><p id="import-message" class="form-message" role="status" aria-live="polite"></p><div class="dialog-actions"><button class="primary-button compact" type="submit">开始导入</button></div></form></dialog>
+    <dialog id="delete-chat-dialog" aria-labelledby="delete-chat-title"><h2 id="delete-chat-title">删除这段对话？</h2><p class="muted">对话和消息将被删除，无法恢复。</p><div class="dialog-actions"><button id="cancel-delete-chat" class="quiet-button" type="button">取消</button><button id="confirm-delete-chat" class="danger-button" type="button">确认删除对话</button></div></dialog>
   </body>
 </html>

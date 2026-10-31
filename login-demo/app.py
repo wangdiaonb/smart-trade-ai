@@ -3,15 +3,18 @@ import secrets
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
-from fastapi.responses import FileResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from auth import authenticate_user, init_db, register_user
 from business_api import router as business_router
+from chat_api import router as chat_router
 from database import connection
 from tenancy import TenantContext, require_tenant
+from secret_store import SecretStore
 
 APP_DIR = Path(__file__).resolve().parent
 STATIC_DIR = APP_DIR / "static"
@@ -23,13 +26,23 @@ class Credentials(BaseModel):
     password: str
 
 
-def create_app(db_path: Path | None = None, secret_key: str | None = None) -> FastAPI:
+def create_app(db_path: Path | None = None, secret_key: str | None = None, *, model_transport=None) -> FastAPI:
     resolved_db_path = Path(db_path) if db_path is not None else DEFAULT_DB_PATH
     init_db(resolved_db_path)
 
     app = FastAPI(title="Login Demo")
+
+    @app.exception_handler(RequestValidationError)
+    async def safe_validation_error(request: Request, exc: RequestValidationError):
+        # Pydantic includes submitted values in errors; never echo credentials.
+        errors = [{key: error[key] for key in ('loc', 'msg', 'type') if key in error} for error in exc.errors()]
+        return JSONResponse(status_code=422, content={'detail': errors})
+
     app.state.db_path = resolved_db_path
+    app.state.model_transport = model_transport
+    app.state.secret_store = SecretStore(resolved_db_path.parent / 'model-encryption.key')
     app.include_router(business_router)
+    app.include_router(chat_router)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     app.add_middleware(
         SessionMiddleware,

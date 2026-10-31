@@ -7,6 +7,8 @@ const messages = {
   'Email already registered': '这个邮箱已经注册，请直接登录。',
   'Not logged in': '登录已过期，请重新登录。',
   'Record not found': '记录不存在或无权访问，请刷新后重试。',
+  'Customer not found': '关联客户不存在或不属于当前公司空间。',
+  'Conversation not found': '对话不存在或无权访问，请刷新后重试。',
 };
 
 export async function api(path, options = {}) {
