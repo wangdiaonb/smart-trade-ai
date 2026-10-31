@@ -32,10 +32,6 @@
 
       <div class="header-account">
         <span class="account-email" id="account-email">已登录</span>
-        <button id="model-settings-button" class="header-icon-button" type="button" title="模型设置" aria-label="模型设置">⚙</button>
-        <button id="skills-help-button" class="header-icon-button" type="button" title="技能帮助" aria-label="技能帮助">◎</button>
-        <button id="onboarding-button" class="header-icon-button" type="button" title="新手引导" aria-label="新手引导">?</button>
-        <button id="logout-button" class="header-icon-button" type="button" title="退出登录" aria-label="退出登录">↗</button>
         <button id="mobile-open" class="mobile-open" type="button" aria-label="打开工作流导航" aria-expanded="false">菜单</button>
       </div>
     </header>
@@ -68,6 +64,15 @@
         <button class="nav-item" data-view="osint" type="button"><span class="nav-icon">10</span><span class="nav-label">客户背调</span></button>
         <button class="nav-item" data-view="tasks" type="button"><span class="nav-icon">11</span><span class="nav-label">定时任务</span></button>
         <button class="nav-item" data-view="history" type="button"><span class="nav-icon">12</span><span class="nav-label">对话记录</span></button>
+      </div>
+      <div class="nav-bottom-tools">
+        <span class="nav-cluster-label">TOOLS</span>
+        <div class="nav-bottom-grid">
+          <button id="model-settings-button" class="nav-tool-button" type="button" title="模型设置" aria-label="模型设置"><span>⚙</span><small>模型设置</small></button>
+          <button id="skills-help-button" class="nav-tool-button" type="button" title="技能帮助" aria-label="技能帮助"><span>◎</span><small>技能帮助</small></button>
+          <button id="onboarding-button" class="nav-tool-button" type="button" title="新手引导" aria-label="新手引导"><span>?</span><small>新手引导</small></button>
+          <button id="logout-button" class="nav-tool-button" type="button" title="退出登录" aria-label="退出登录"><span>↗</span><small>退出登录</small></button>
+        </div>
       </div>
     </nav>
     <button id="mobile-scrim" class="mobile-scrim" type="button" aria-label="关闭工作流导航" hidden></button>
