@@ -60,17 +60,28 @@
             <div class="space-label">公司空间</div>
             <strong id="space-name">正在加载…</strong>
             <nav class="business-nav" aria-label="工作台导航">
+              <button type="button" data-view="dashboard" aria-current="page">总览</button>
               <button type="button" data-view="chat">AI 工作台</button>
-              <button type="button" data-view="customers" aria-current="page">客户管理 <span id="customer-count">0</span></button>
+              <button type="button" data-view="customers">客户管理 <span id="customer-count">0</span></button>
               <button type="button" data-view="company">公司资料</button>
               <button type="button" data-view="orders">订单与报价</button>
               <button type="button" data-view="documents">文档与模板</button>
+              <button type="button" data-view="research">客户情报</button>
+              <button type="button" data-view="automations">自动化</button>
               <button type="button" data-view="model">模型与记忆</button>
             </nav>
             <div class="sidebar-account"><span class="identity-dot" aria-hidden="true"></span><span id="workspace-email" class="identity-email"></span></div>
           </aside>
           <div class="business-content">
             <p id="business-message" class="business-message" role="status" aria-live="polite"></p>
+            <section id="dashboard-view" aria-labelledby="dashboard-title">
+              <div class="section-heading"><div><p class="eyebrow">工作空间概览</p><h1 id="dashboard-title">总览</h1><p id="dashboard-company" class="section-description">正在加载公司空间…</p></div><button id="quick-chat" type="button" class="primary-button compact">打开 AI 助手</button></div>
+              <div id="metric-grid" class="metric-grid" aria-label="业务数据概览"></div>
+              <div class="dashboard-columns">
+                <section class="dashboard-panel"><div class="dashboard-panel-heading"><h2 class="subsection-title">近期订单</h2><button type="button" class="text-button" data-jump="orders">查看全部</button></div><div id="dashboard-orders" class="dashboard-list"></div></section>
+                <section class="dashboard-panel"><div class="dashboard-panel-heading"><h2 class="subsection-title">待执行任务</h2><button type="button" class="text-button" data-jump="automations">管理自动化</button></div><div id="dashboard-tasks" class="dashboard-list"></div></section>
+              </div>
+            </section>
             <section id="chat-view" aria-labelledby="chat-title" hidden>
               <div class="section-heading"><div><p class="eyebrow">业务助手</p><h1 id="chat-title">AI 工作台</h1><p class="section-description">结合公司、客户资料和历史对话处理业务。</p></div><button id="new-conversation" type="button" class="quiet-button">＋ 新对话</button></div>
               <div class="chat-layout">
@@ -93,6 +104,17 @@
               <form id="upload-form" class="upload-toolbar"><label>选择文档库<select id="library-select" required></select></label><label>选择文件（最多 12 MB）<input id="document-file" type="file" accept=".txt,.md,.csv,.pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp" required></label><button type="submit" class="primary-button compact">上传文件</button></form>
               <p id="operations-message" class="form-message" role="status" aria-live="polite"></p><div id="documents-list" class="record-list"></div>
               <div class="workspace-rule"></div><div class="section-heading"><div><h2 class="subsection-title">业务文案模板</h2><p class="section-description">支持 {{company}}、{{customer}}、{{products}}、{{contact}} 文字占位符。</p></div><button id="new-template" type="button" class="quiet-button">＋ 新建模板</button></div><div id="templates-list" class="record-list"></div>
+            </section>
+            <section id="research-view" aria-labelledby="research-title" hidden>
+              <div class="section-heading"><div><p class="eyebrow">公开信息研究</p><h1 id="research-title">客户情报</h1><p class="section-description">使用账号自己的 Tavily 搜索配置，保存带来源链接的研究记录。</p></div></div>
+              <form id="research-settings-form" class="research-settings"><label>Tavily API Key<input name="api_key" type="password" autocomplete="off" maxlength="1000" placeholder="填写新密钥；留空保留已保存密钥"></label><button class="quiet-button" type="submit">保存搜索配置</button><button id="clear-research-key" type="button" class="text-button">清除密钥</button><span id="research-key-state" class="muted">尚未配置</span></form>
+              <form id="research-form" class="customer-toolbar"><label class="sr-only" for="research-query">目标公司或问题</label><input id="research-query" name="query" minlength="2" maxlength="2000" required placeholder="输入目标公司、官网或要核验的问题"><label class="sr-only" for="research-customer">关联客户</label><select id="research-customer" name="customer_id"><option value="">不关联客户</option></select><button class="primary-button compact" type="submit">搜索公开信息</button></form>
+              <p id="research-message" class="form-message" role="status" aria-live="polite"></p><div id="research-reports" class="record-list"></div>
+            </section>
+            <section id="automations-view" aria-labelledby="automations-title" hidden>
+              <div class="section-heading"><div><p class="eyebrow">本地调度</p><h1 id="automations-title">自动化</h1><p class="section-description">按公司资料和客户数据定时生成文本结果，运行记录保存在当前空间。</p></div><button id="new-automation" class="primary-button compact" type="button">＋ 新建任务</button></div>
+              <div id="automations-list" class="record-list"></div>
+              <div class="workspace-rule"></div><h2 class="subsection-title">最近运行</h2><div id="automation-runs" class="record-list"></div>
             </section>
             <section id="model-view" aria-labelledby="model-title" hidden>
               <p class="eyebrow">工作空间设置</p><h1 id="model-title">模型与记忆</h1><p class="section-description">每个账号独立配置。发送问题时，会将当前公司资料、关联客户和记忆备注提交给所选模型服务。</p>
@@ -173,5 +195,7 @@
     <dialog id="library-dialog" aria-labelledby="library-title"><form id="library-form" class="business-form"><div class="dialog-heading"><h2 id="library-title">新建文档库</h2><button class="icon-button" data-close="library-dialog" type="button" aria-label="关闭文档库">×</button></div><label>文档库名称<input name="name" required maxlength="200"></label><label>说明<input name="description" maxlength="2000"></label><p id="library-message" class="form-message" role="status"></p><div class="dialog-actions"><button type="submit" class="primary-button compact">创建文档库</button></div></form></dialog>
     <dialog id="text-dialog" aria-labelledby="text-title"><div class="dialog-heading"><h2 id="text-title">文档文字</h2><button class="icon-button" data-close="text-dialog" type="button" aria-label="关闭文档文字">×</button></div><p id="document-note" class="muted"></p><pre id="document-text" class="plain-preview"></pre></dialog>
     <dialog id="template-dialog" aria-labelledby="template-title"><form id="template-form" class="business-form"><div class="dialog-heading"><h2 id="template-title">业务文案模板</h2><button class="icon-button" data-close="template-dialog" type="button" aria-label="关闭模板">×</button></div><label>模板名称<input name="name" required maxlength="200"></label><label>模板内容<textarea name="content" rows="10" maxlength="50000" required></textarea></label><p id="template-message" class="form-message" role="status"></p><div class="dialog-actions"><button type="submit" class="primary-button compact">保存模板</button></div></form></dialog>
+    <dialog id="research-report-dialog" aria-labelledby="research-report-title"><div class="dialog-heading"><h2 id="research-report-title">客户情报报告</h2><button class="icon-button" data-close="research-report-dialog" type="button" aria-label="关闭报告">×</button></div><p id="research-report-meta" class="muted"></p><div id="research-report-answer" class="report-answer"></div><h3>来源</h3><div id="research-sources" class="source-list"></div></dialog>
+    <dialog id="automation-dialog" aria-labelledby="automation-title"><form id="automation-form" class="business-form"><div class="dialog-heading"><h2 id="automation-title">新建自动化</h2><button class="icon-button" type="button" data-close="automation-dialog" aria-label="关闭自动化">×</button></div><div class="form-grid"><label class="full-width">任务名称<input name="name" required maxlength="200"></label><label class="full-width">执行指令<textarea name="prompt" rows="5" maxlength="20000" required placeholder="例如：根据公司资料和客户列表，列出今天应优先跟进的客户并说明原因。"></textarea></label><label>业务技能<select name="skill_id" id="automation-skill" required></select></label><label>频率<select name="frequency"><option value="daily">每天</option><option value="weekdays">工作日</option><option value="weekly">每周</option></select></label><label>执行时间<input name="time_of_day" type="time" value="09:00" required></label><label>每周执行日<select name="weekday"><option value="0">周一</option><option value="1">周二</option><option value="2">周三</option><option value="3">周四</option><option value="4">周五</option><option value="5">周六</option><option value="6">周日</option></select></label><label class="checkbox-label"><input name="enabled" type="checkbox" checked>启用此任务</label></div><p id="automation-message" class="form-message" role="status"></p><div class="dialog-actions"><button type="button" class="quiet-button" data-close="automation-dialog">取消</button><button type="submit" class="primary-button compact">保存任务</button></div></form></dialog>
   </body>
 </html>

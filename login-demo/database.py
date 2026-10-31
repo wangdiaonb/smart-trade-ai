@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from operations_schema import TABLES
+from platform_schema import TABLES as PLATFORM_TABLES
 
 
 @contextmanager
@@ -151,6 +152,8 @@ def migrate(path: Path) -> None:
             )
         """)
         for statement in TABLES:
+            conn.execute(statement)
+        for statement in PLATFORM_TABLES:
             conn.execute(statement)
         for row in conn.execute("""
             SELECT id FROM users

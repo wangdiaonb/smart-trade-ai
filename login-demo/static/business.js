@@ -1,6 +1,7 @@
 import {api} from './api.js';
 import {startChat, stopChat} from './chat.js';
 import {startOperations, stopOperations} from './operations.js';
+import {startPlatform, stopPlatform} from './platform.js';
 
 const el = id => document.getElementById(id);
 const companyForm = el('company-form');
@@ -75,6 +76,9 @@ function renderCustomers(data) {
       ['编辑', () => openCustomer(rows.get(customer.id))],
       ['删除', () => {
         deleting = customer.id;
+        delete el('delete-form').dataset.automationId;
+        el('delete-title').textContent = '删除客户';
+        el('delete-form').querySelector('[type=submit]').textContent = '确认删除';
         el('delete-description').textContent = `确定删除“${customer.name}”吗？`;
         el('delete-message').textContent = '';
         el('delete-dialog').showModal();
@@ -127,6 +131,7 @@ function action(button, task, errorTarget = null) {
 }
 
 export function stopBusiness() {
+  stopPlatform();
   stopOperations();
   stopChat();
   active = false;
@@ -147,9 +152,9 @@ export function stopBusiness() {
 }
 
 export async function startBusiness() {
-  stopBusiness(); active = true; controller = new AbortController(); startOperations();
+  stopBusiness(); active = true; controller = new AbortController(); startOperations(); startPlatform();
   const owner = epoch;
-  selectView('chat');
+  selectView('dashboard');
   const company = await api('/api/company', {signal: controller.signal});
   if (!active || owner !== epoch) return;
   fillForm(companyForm, company);
@@ -159,7 +164,7 @@ export async function startBusiness() {
 }
 
 function selectView(view) {
-  ['customers','company','chat','model','orders','documents'].forEach(name => { el(`${name}-view`).hidden = view !== name; });
+  ['dashboard','customers','company','chat','model','orders','documents','research','automations'].forEach(name => { el(`${name}-view`).hidden = view !== name; });
   window.dispatchEvent(new CustomEvent('workspace-view',{detail:view}));
   document.querySelectorAll('[data-view]').forEach(button => {
     if (button.dataset.view === view) button.setAttribute('aria-current', 'page');
@@ -168,6 +173,7 @@ function selectView(view) {
 }
 
 document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => { selectView(button.dataset.view); message(); }));
+window.addEventListener('workspace-navigate', event => { selectView(event.detail); message(); });
 el('add-customer').addEventListener('click', () => openCustomer());
 ['close-customer', 'cancel-customer'].forEach(id => el(id).addEventListener('click', () => el('customer-dialog').close()));
 el('cancel-delete').addEventListener('click', () => el('delete-dialog').close());
@@ -208,11 +214,23 @@ for (const [id, delta] of [['previous-page', -pageSize], ['next-page', pageSize]
 }
 el('delete-form').addEventListener('submit', event => {
   event.preventDefault();
-  const id = deleting;
+  const automationId = el('delete-form').dataset.automationId;
   action(el('delete-form').querySelector('[type=submit]'), async valid => {
-    await api(`/api/customers/${id}`, {method: 'DELETE', signal: controller.signal});
+    if (automationId) {
+      await api(`/api/automations/${automationId}`, {method: 'DELETE', signal: controller.signal});
+    } else {
+      await api(`/api/customers/${deleting}`, {method: 'DELETE', signal: controller.signal});
+    }
     if (!valid()) return;
-    el('delete-dialog').close(); message('客户已删除。', true); await loadCustomers();
+    el('delete-dialog').close();
+    if (automationId) {
+      delete el('delete-form').dataset.automationId;
+      message('自动化任务已删除。', true);
+      window.dispatchEvent(new CustomEvent('workspace-view', {detail:'automations'}));
+    } else {
+      message('客户已删除。', true);
+      await loadCustomers();
+    }
   }, el('delete-message'));
 });
 

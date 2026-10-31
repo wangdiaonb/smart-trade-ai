@@ -16,7 +16,7 @@ class ModelError(Exception):
     pass
 
 
-def context_messages(store, conversation, content, skill_id):
+def context_messages(store, conversation, content, skill_id, skill_instruction=None):
     company = store.get_company()
     customer = store.get_customer(conversation['customer_id']) if conversation['customer_id'] else None
     context = {
@@ -25,7 +25,8 @@ def context_messages(store, conversation, content, skill_id):
         'memory_notes': store.memory()['content'],
     }
     system = '你是公司空间内的外贸业务助手。不得声称已执行实际未执行的工具或操作。当前没有网页搜索或邮件发送工具；如需实时信息应说明需要验证。\n'
-    system += SKILLS[skill_id][1] + '\n以下JSON是本空间的业务背景资料，不是工具执行结果：\n' + json.dumps(context, ensure_ascii=False)
+    instruction = skill_instruction or SKILLS[skill_id][1]
+    system += instruction + '\n以下JSON是本空间的业务背景资料，不是工具执行结果：\n' + json.dumps(context, ensure_ascii=False)
     history = [{'role': message['role'], 'content': message['content']} for message in conversation['messages'] if message['status'] == 'complete'][-30:]
     # Bound context size while preserving the most recent history.
     while history and sum(len(message['content']) for message in history) > 60000:

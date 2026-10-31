@@ -19,6 +19,18 @@ from tenancy import TenantContext
 
 
 def model(request):
+    if request.url.host == 'api.tavily.com':
+        return httpx.Response(200, json={
+            'answer': '隔离测试搜索摘要：公开资料显示该客户采购工业水泵。',
+            'results': [
+                {
+                    'title': 'Acme official site',
+                    'url': 'https://acme.example/about',
+                    'content': 'Public browser validation source for Acme pumps.',
+                    'score': 0.9,
+                }
+            ],
+        })
     response='【隔离测试响应】产品资料和客户上下文已接收。这是本地模拟模型，仅用于验证流式界面。'
     events=''.join('data: '+json.dumps({'choices':[{'delta':{'content':part}}]},ensure_ascii=False)+'\n\n' for part in [response[:20],response[20:]])
     return httpx.Response(200,content=(events+'data: [DONE]\n\n').encode())

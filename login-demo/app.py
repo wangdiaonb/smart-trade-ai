@@ -1,5 +1,7 @@
 import os
 import secrets
+import asyncio
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
@@ -14,9 +16,13 @@ from business_api import router as business_router
 from chat_api import router as chat_router
 from orders_api import router as orders_router
 from documents_api import router as documents_router
+from research_api import router as research_router
+from automation_api import router as automation_router, scheduler_loop
+from dashboard_api import router as dashboard_router
 from database import connection
 from tenancy import TenantContext, require_tenant
 from secret_store import SecretStore
+from skill_catalog import SkillCatalog
 
 APP_DIR = Path(__file__).resolve().parent
 STATIC_DIR = APP_DIR / "static"
@@ -28,11 +34,26 @@ class Credentials(BaseModel):
     password: str
 
 
-def create_app(db_path: Path | None = None, secret_key: str | None = None, *, model_transport=None) -> FastAPI:
+def create_app(
+    db_path: Path | None = None,
+    secret_key: str | None = None,
+    *,
+    model_transport=None,
+    skill_dir: Path | None = None,
+) -> FastAPI:
     resolved_db_path = Path(db_path) if db_path is not None else DEFAULT_DB_PATH
     init_db(resolved_db_path)
 
-    app = FastAPI(title="Login Demo")
+    @asynccontextmanager
+    async def lifespan(application):
+        scheduler = asyncio.create_task(scheduler_loop(application))
+        application.state.scheduler_task = scheduler
+        try:
+            yield
+        finally:
+            scheduler.cancel()
+
+    app = FastAPI(title="Login Demo", lifespan=lifespan)
 
     @app.exception_handler(RequestValidationError)
     async def safe_validation_error(request: Request, exc: RequestValidationError):
@@ -43,10 +64,15 @@ def create_app(db_path: Path | None = None, secret_key: str | None = None, *, mo
     app.state.db_path = resolved_db_path
     app.state.model_transport = model_transport
     app.state.secret_store = SecretStore(resolved_db_path.parent / 'model-encryption.key')
+    app.state.skill_catalog = SkillCatalog(skill_dir if skill_dir is not None else APP_DIR.parent / 'skills')
     app.include_router(business_router)
     app.include_router(chat_router)
     app.include_router(orders_router)
     app.include_router(documents_router)
+    app.include_router(research_router)
+    app.include_router(automation_router)
+    app.include_router(dashboard_router)
+
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     app.add_middleware(
         SessionMiddleware,

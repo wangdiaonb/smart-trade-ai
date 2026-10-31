@@ -87,8 +87,23 @@ async function loadSettings() {
   el('model-key-state').textContent = settings.has_key ? '已保存 API Key（不会回传明文）；留空可保留。' : '尚未配置 API Key';
   el('chat-model-label').textContent = settings.has_key ? settings.model : '请先到“模型与记忆”配置 API Key';
   el('memory-content').value = memory.content;
-  el('chat-skill').replaceChildren(...skills.map(skill => {
-    const option = document.createElement('option'); option.value = skill.id; option.textContent = skill.name; return option;
+  const groups = new Map();
+  for (const skill of skills) {
+    const category = skill.category || '业务技能';
+    if (!groups.has(category)) groups.set(category, []);
+    groups.get(category).push(skill);
+  }
+  el('chat-skill').replaceChildren(...[...groups].map(([category, entries]) => {
+    const group = document.createElement('optgroup');
+    group.label = category;
+    group.append(...entries.map(skill => {
+      const option = document.createElement('option');
+      option.value = skill.id;
+      option.textContent = skill.name;
+      option.title = skill.description || '';
+      return option;
+    }));
+    return group;
   }));
   const unbound = document.createElement('option'); unbound.value=''; unbound.textContent='不关联客户';
   el('chat-customer').replaceChildren(unbound, ...customers.items.map(customer => {
