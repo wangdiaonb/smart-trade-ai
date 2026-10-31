@@ -1,3 +1,7 @@
+import {api} from './api.js';
+import {startBusiness, stopBusiness} from './business.js';
+
+let authEpoch = 0;
 const authPanel = document.getElementById('auth-panel');
 const workspace = document.getElementById('workspace');
 const loginForm = document.getElementById('login-form');
@@ -27,22 +31,34 @@ function showMode(mode) {
   showMessage('');
 }
 
-function showWorkspace(user) {
+async function showWorkspace(user) {
+  const owner = ++authEpoch;
   authPanel.hidden = true;
   workspace.hidden = false;
-  workspaceEmail.textContent = user.email;
+  loginForm.reset(); registerForm.reset();
+  try {
+    await startBusiness();
+    if (owner === authEpoch) workspaceEmail.textContent = user.email;
+  } catch (error) {
+    if (owner !== authEpoch || error.name === 'AbortError') return;
+    document.getElementById('business-message').textContent = error.message;
+  }
 }
 
 async function requestJson(path, payload) {
-  const response = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.detail || '请求失败，请稍后重试');
-  return data;
+  return api(path, {method: 'POST', body: payload, notifyExpired: false});
 }
+
+function showLogin(message = '') {
+  authEpoch++;
+  stopBusiness();
+  workspace.hidden = true;
+  authPanel.hidden = false;
+  loginForm.reset(); registerForm.reset();
+  showMode('login'); showMessage(message);
+}
+
+window.addEventListener('session-expired', () => showLogin('登录已过期，请重新登录。'));
 
 function bindForm(form, endpoint) {
   form.addEventListener('submit', async (event) => {
@@ -53,7 +69,7 @@ function bindForm(form, endpoint) {
     showMessage('');
     try {
       const user = await requestJson(endpoint, payload);
-      showWorkspace(user);
+      await showWorkspace(user);
     } catch (error) {
       showMessage(error.message);
     } finally {
@@ -70,21 +86,18 @@ bindForm(registerForm, '/api/register');
 document.getElementById('logout-button').addEventListener('click', async () => {
   try {
     await requestJson('/api/logout', {});
-    workspace.hidden = true;
-    authPanel.hidden = false;
-    loginForm.reset();
-    showMode('login');
+    showLogin();
   } catch (error) {
-    showMessage(error.message);
+    document.getElementById('business-message').textContent = error.message;
   }
 });
 
 async function restoreSession() {
   try {
-    const response = await fetch('/api/me');
-    if (response.ok) showWorkspace(await response.json());
-  } catch (_) {
-    showMessage('无法连接服务器，请确认本地服务正在运行');
+    const user = await api('/api/me', {notifyExpired: false});
+    await showWorkspace(user);
+  } catch (error) {
+    if (error.status !== 401) showMessage(error.message);
   }
 }
 

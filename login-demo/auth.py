@@ -5,24 +5,14 @@ import secrets
 import sqlite3
 from pathlib import Path
 
+from database import connection, create_default_workspace, migrate
+
 _EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 _PASSWORD_ITERATIONS = 310_000
 
 
 def init_db(db_path: Path) -> None:
-    db_path = Path(db_path)
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(db_path) as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT NOT NULL COLLATE NOCASE UNIQUE,
-                salt TEXT NOT NULL,
-                password_hash TEXT NOT NULL
-            )
-            """
-        )
+    migrate(db_path)
 
 
 def hash_password(password: str) -> tuple[str, str]:
@@ -63,12 +53,13 @@ def register_user(db_path: Path, email: str, password: str) -> dict[str, object]
     salt, password_hash = hash_password(password)
     init_db(db_path)
     try:
-        with sqlite3.connect(db_path) as conn:
+        with connection(db_path) as conn:
             cursor = conn.execute(
                 "INSERT INTO users(email, salt, password_hash) VALUES (?, ?, ?)",
                 (normalized_email, salt, password_hash),
             )
             user_id = cursor.lastrowid
+            create_default_workspace(conn, user_id)
     except sqlite3.IntegrityError as exc:
         if "users.email" in str(exc):
             raise ValueError("email already registered") from exc
@@ -83,7 +74,7 @@ def authenticate_user(
         return None
     normalized_email = email.strip().lower()
     init_db(db_path)
-    with sqlite3.connect(db_path) as conn:
+    with connection(db_path) as conn:
         row = conn.execute(
             "SELECT id, email, salt, password_hash FROM users WHERE email = ?",
             (normalized_email,),

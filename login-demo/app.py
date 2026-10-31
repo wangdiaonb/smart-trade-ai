@@ -1,15 +1,17 @@
 import os
 import secrets
-import sqlite3
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from auth import authenticate_user, init_db, register_user
+from business_api import router as business_router
+from database import connection
+from tenancy import TenantContext, require_tenant
 
 APP_DIR = Path(__file__).resolve().parent
 STATIC_DIR = APP_DIR / "static"
@@ -27,6 +29,7 @@ def create_app(db_path: Path | None = None, secret_key: str | None = None) -> Fa
 
     app = FastAPI(title="Login Demo")
     app.state.db_path = resolved_db_path
+    app.include_router(business_router)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     app.add_middleware(
         SessionMiddleware,
@@ -71,16 +74,17 @@ def create_app(db_path: Path | None = None, secret_key: str | None = None) -> Fa
         return user
 
     @app.get("/api/me")
-    def current_user(request: Request) -> dict[str, object]:
-        user_id = request.session.get("user_id")
-        if not isinstance(user_id, int):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not logged in")
-        with sqlite3.connect(resolved_db_path) as conn:
-            row = conn.execute("SELECT id, email FROM users WHERE id = ?", (user_id,)).fetchone()
-        if row is None:
-            request.session.clear()
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not logged in")
-        return {"id": int(row[0]), "email": row[1]}
+    def current_user(tenant: TenantContext = Depends(require_tenant)) -> dict[str, object]:
+        return {"id": tenant.user_id, "email": tenant.email}
+
+    @app.get("/api/workspace")
+    def workspace(tenant: TenantContext = Depends(require_tenant)) -> dict[str, object]:
+        with connection(resolved_db_path) as conn:
+            row = conn.execute(
+                "SELECT id, owner_user_id, name, created_at FROM workspaces WHERE id = ? AND owner_user_id = ?",
+                (tenant.workspace_id, tenant.user_id),
+            ).fetchone()
+        return dict(row)
 
     @app.post("/api/logout")
     def logout(request: Request) -> dict[str, bool]:
